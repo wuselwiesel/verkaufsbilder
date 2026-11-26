@@ -8,6 +8,7 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 - **Serie:** Mehrere Artikel in einem Durchgang. Neue Artikel übernehmen Look, Collage und Aufkleber, Texte und Fotos sind frei. „Alle als ZIP speichern“ packt die Titelbilder aller Artikel zusammen. Auf Wunsch kommen alle Einzelfotos als eigene Bilder dazu.
 - **Titelbild aus mehreren Fotos:** „Titelbild automatisch“ verteilt alle Fotos eines Artikels auf die passende Collage. Weitere Fotos bleiben als Einzelbilder erhalten.
 - **Collagen:** ein bis vier Fotos (nebeneinander, untereinander, drei, vier), zwei oder drei überlappende Karten, Vorher und Nachher
+- **Marke und Zustand** als eigene Felder (Marke mit Schnellwahl der zuletzt genutzten Marken). Beide lassen sich im Bild ein- und ausblenden. Lange Zeilen unter dem Titel werden automatisch kleiner.
 - **Preis:** Alter Preis wird durchgestrichen. Der Aufkleber „Rabatt“ rechnet den Prozentsatz selbst aus.
 - **Hintergründe:** Verlauf, Papier, Holz, Leinen, Punkte, Streifen, Karo
 - **Rückgängig und Wiederholen** (auch mit Strg+Z und Strg+Y)

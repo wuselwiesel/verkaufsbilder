@@ -45,7 +45,7 @@
   }
   function snapshot(withPhotos) {
     return JSON.stringify({
-      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop },
+      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop, showBrand: s.showBrand, showCond: s.showCond },
       singles: s.singles, hires: s.hires, items: s.items.map(function (x) { return iser(x, withPhotos); })
     });
   }
@@ -71,6 +71,10 @@
       var v = o.byType[k]; if (v && typeof v.size === "string" && typeof v.extra === "string") x.byType[k] = { size: v.size.slice(0, 24), extra: v.extra.slice(0, 24) };
     });
     if (o.texts) Object.keys(x.texts).forEach(function (k) { if (typeof o.texts[k] === "string") x.texts[k] = o.texts[k].slice(0, 60); });
+    if (o.texts && typeof o.texts.brand !== "string" && x.texts.extra) {
+      var isCond = VB.ARTICLES.some(function (a) { return a.conds.indexOf(x.texts.extra) >= 0; });
+      if (!isCond) { x.texts.brand = x.texts.extra; x.texts.extra = ""; }
+    }
     if (VB.COLL_N[o.collage]) x.collage = o.collage;
     x.photos = [0, 1, 2, 3].map(function (i) { return pdes((o.photos || [])[i]); });
     x.extras = (o.extras || []).map(pdes).filter(Boolean);
@@ -89,6 +93,8 @@
     if (HEX.test(L.g)) s.g = L.g;
     if (typeof L.radius === "number") s.radius = clamp(L.radius, 0, 90);
     if (typeof L.shop === "string") s.shop = L.shop.slice(0, 20);
+    if (typeof L.showBrand === "boolean") s.showBrand = L.showBrand;
+    if (typeof L.showCond === "boolean") s.showCond = L.showCond;
   }
   function applyState(o) {
     applyLook(o.look);
@@ -192,7 +198,7 @@
   $("lookSave").onclick = function () {
     var name = $("lookName").value.trim() || "Stil " + (looks.length + 1), x = it();
     var p = { name: name.slice(0, 24),
-      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop },
+      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop, showBrand: s.showBrand, showCond: s.showCond },
       stickers: x.stickers.map(stripSticker) };
     var at = -1; looks.forEach(function (q, i) { if (q.name.toLowerCase() === p.name.toLowerCase()) at = i; });
     if (at >= 0) looks[at] = p; else if (looks.length >= 20) { toast("Mehr als 20 Stile gehen nicht. Lösche zuerst einen."); return; } else looks.push(p);
@@ -384,7 +390,7 @@
   };
 
   /* Text */
-  ["title", "size", "price", "old", "extra"].forEach(function (k) {
+  ["title", "size", "price", "old", "brand", "extra"].forEach(function (k) {
     $(k).addEventListener("input", function () {
       it().texts[k] = this.value; if (k === "title") buildSeries(); syncSticker(); render(); changed();
     });
@@ -393,12 +399,29 @@
 
   function buildChips() {
     var a = VB.article(), box = $("sizeChips"); box.textContent = "";
-    $("sizeLabel").textContent = a.sizeLabel; $("size").placeholder = a.ph; $("title").placeholder = a.titlePh; $("extraLabel").textContent = a.extraLabel;
+    $("sizeLabel").textContent = a.sizeLabel; $("size").placeholder = a.ph; $("title").placeholder = a.titlePh; $("extraLabel").textContent = a.extraLabel; $("brandLabel").textContent = a.brandLabel;
     box.hidden = a.sizes.length === 0;
     a.sizes.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.size = v; $("size").value = v; render(); changed(); }); });
     box = $("condChips"); box.textContent = "";
     a.conds.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.extra = v; $("extra").value = v; render(); changed(); }); });
   }
+  /* Zuletzt genutzte Marken merken (nur auf diesem Gerät) und als Schnellwahl anbieten */
+  var BRANDS_KEY = "verkaufsbilder-marken-v1", brands = [];
+  try { var bb = JSON.parse(localStorage.getItem(BRANDS_KEY) || "[]"); if (Array.isArray(bb)) brands = bb.filter(function (v) { return typeof v === "string"; }).slice(0, 10); } catch (e) {}
+  function rememberBrand(v) {
+    v = v.trim(); if (v.length < 2) return;
+    brands = [v].concat(brands.filter(function (b) { return b.toLowerCase() !== v.toLowerCase(); })).slice(0, 10);
+    try { localStorage.setItem(BRANDS_KEY, JSON.stringify(brands)); } catch (e) {}
+    buildBrandChips();
+  }
+  function buildBrandChips() {
+    var box = $("brandChips"); box.textContent = ""; box.hidden = brands.length === 0;
+    brands.forEach(function (b) { mkBtn(box, b, null, function () { it().texts.brand = b; $("brand").value = b; render(); changed(); }); });
+  }
+  $("brand").addEventListener("change", function () { rememberBrand(this.value); });
+  $("showBrand").addEventListener("change", function () { s.showBrand = this.checked; render(); changed(); });
+  $("showCond").addEventListener("change", function () { s.showCond = this.checked; render(); changed(); });
+
   function buildArticles() {
     var sel = $("article"); sel.textContent = "";
     VB.ARTICLES.forEach(function (a) {
@@ -691,8 +714,8 @@
   /* Alles neu aufbauen (Start, Artikelwechsel, Rückgängig) */
   function refreshAll() {
     var x = it();
-    ["title", "size", "price", "old", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
-    $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("hires").checked = s.hires;
+    ["title", "size", "price", "old", "brand", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
+    $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("showBrand").checked = s.showBrand; $("showCond").checked = s.showCond; buildBrandChips(); $("hires").checked = s.hires;
     buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
     buildLib(); buildSeries(); buildLooks(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
   }

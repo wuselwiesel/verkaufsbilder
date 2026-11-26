@@ -162,9 +162,11 @@
     if (cur) out.push(cur);
     return out;
   }
-  function drawParts(g, parts, align, x, y, ink) {
-    g.font = "700 46px " + FB; ls(g, 1);
-    var ws = parts.map(function (p) { return g.measureText(p.t).width; }), total = ws.reduce(function (a, b) { return a + b; }, 0);
+  function drawParts(g, parts, align, x, y, ink, maxW) {
+    var fs = 46, ws, total;
+    function meas() { g.font = "700 " + fs + "px " + FB; ls(g, 1); ws = parts.map(function (p) { return g.measureText(p.t).width; }); total = ws.reduce(function (a, b) { return a + b; }, 0); }
+    meas();
+    while (total > maxW && fs > 26) { fs -= 2; meas(); }
     var cx = align === "center" ? x - total / 2 : x;
     g.fillStyle = ink; g.textAlign = "left"; g.textBaseline = "alphabetic";
     parts.forEach(function (p, i) { g.fillText(p.t, cx, y); if (p.strike) g.fillRect(cx, y - 16, ws[i], 3); cx += ws[i]; });
@@ -184,7 +186,7 @@
     g.fillStyle = o.ink; g.textAlign = o.align; g.textBaseline = "alphabetic"; g.font = VB.fontStr(fs);
     lines.forEach(function (l, i) { g.fillText(l, o.x, first + i * lh); });
     ls(g, 0);
-    if (hasSub) drawParts(g, o.parts, o.align, o.x, subY, o.ink);
+    if (hasSub) drawParts(g, o.parts, o.align, o.x, subY, o.ink, o.maxW);
     return { bottom: (hasSub ? subY : last) + 16 };
   }
 

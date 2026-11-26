@@ -139,8 +139,14 @@
             <label for="price">Preis in € <input type="text" id="price" maxlength="7" inputmode="decimal"></label>
             <div class="full chips" id="sizeChips" aria-label="Größe wählen"></div>
             <label class="full" for="old">Alter Preis in € (wird durchgestrichen, optional) <input type="text" id="old" maxlength="7" inputmode="decimal"></label>
-            <label class="full" for="extra"><span id="extraLabel">Marke oder Zustand</span> <input type="text" id="extra" maxlength="24"></label>
+            <label class="full" for="brand"><span id="brandLabel">Marke</span> <input type="text" id="brand" maxlength="24" autocomplete="off"></label>
+            <div class="full chips" id="brandChips" aria-label="Zuletzt genutzte Marken"></div>
+            <label class="full" for="extra"><span id="extraLabel">Zustand</span> <input type="text" id="extra" maxlength="24"></label>
             <div class="full chips" id="condChips" aria-label="Zustand wählen"></div>
+            <div class="full checks">
+              <label class="check"><input type="checkbox" id="showBrand"> Marke im Bild zeigen</label>
+              <label class="check"><input type="checkbox" id="showCond"> Zustand im Bild zeigen</label>
+            </div>
             <label class="full" for="shop">Shop-Name im Foto (optional, gilt für die ganze Serie) <input type="text" id="shop" maxlength="20"></label>
           </div>
         </div>
