@@ -8,7 +8,7 @@
   /* Fotos mit Korrektur */
   var reg = {}, pid = 0;
   function buildWork(p) {
-    var im = p.img, sc = Math.min(1, 1500 / Math.max(im.width, im.height));
+    var im = p.img, sc = Math.min(1, 2000 / Math.max(im.width, im.height));
     var w = Math.max(1, Math.round(im.width * sc)), h = Math.max(1, Math.round(im.height * sc));
     var c = document.createElement("canvas"); c.width = w; c.height = h;
     var x = c.getContext("2d", { willReadFrequently: true });
@@ -26,7 +26,7 @@
     p.work = c;
   }
   function newPhoto(img) {
-    var p = { id: ++pid, img: img, work: null, zoom: 1, px: 0, py: 0, adj: { b: 0, c: 0, s: 0 } };
+    var p = { id: ++pid, img: img, work: null, zoom: 1, px: 0, py: 0, fit: false, adj: { b: 0, c: 0, s: 0 } };
     buildWork(p); reg[p.id] = p; return p;
   }
   function makeSample() {
@@ -48,19 +48,35 @@
   var samplePhoto = newPhoto(makeSample());
   function photoFor(it, i) { return it.photos[i] || (i === 0 && !VB.anyPhoto(it) ? samplePhoto : null); }
 
+  function baseScale(p, w, h) {
+    return p.fit ? Math.min(w / p.work.width, h / p.work.height) : Math.max(w / p.work.width, h / p.work.height);
+  }
   function panRange(p, w, h) {
-    var sc = Math.max(w / p.work.width, h / p.work.height) * p.zoom;
-    return { rx: (p.work.width * sc - w) / 2, ry: (p.work.height * sc - h) / 2 };
+    var sc = baseScale(p, w, h) * p.zoom;
+    return { rx: Math.max(0, (p.work.width * sc - w) / 2), ry: Math.max(0, (p.work.height * sc - h) / 2) };
+  }
+  /* Bei "ganzes Foto" füllt eine weichgezeichnete Kopie des Fotos den Rest der Fläche */
+  var blurTmp = document.createElement("canvas");
+  function drawBackdrop(g, im, x, y, w, h) {
+    var bw = Math.max(2, Math.ceil(w / 28)), bh = Math.max(2, Math.ceil(h / 28));
+    blurTmp.width = bw; blurTmp.height = bh;
+    var b = blurTmp.getContext("2d"), sc = Math.max(bw / im.width, bh / im.height);
+    b.imageSmoothingQuality = "high"; b.drawImage(im, (bw - im.width * sc) / 2, (bh - im.height * sc) / 2, im.width * sc, im.height * sc);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high"; g.drawImage(blurTmp, x, y, w, h);
+    g.fillStyle = "rgba(0,0,0,.10)"; g.fillRect(x, y, w, h);
   }
   function drawPhotoIn(g, p, x, y, w, h) {
-    var im = p.work, sc = Math.max(w / im.width, h / im.height) * p.zoom, dw = im.width * sc, dh = im.height * sc;
-    var dx = x + (w - dw) / 2 + p.px * (dw - w) / 2, dy = y + (h - dh) / 2 + p.py * (dh - h) / 2;
-    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.drawImage(im, dx, dy, dw, dh); g.restore();
+    var im = p.work, sc = baseScale(p, w, h) * p.zoom, dw = im.width * sc, dh = im.height * sc;
+    var rx = Math.max(0, (dw - w) / 2), ry = Math.max(0, (dh - h) / 2);
+    var dx = x + (w - dw) / 2 + p.px * rx, dy = y + (h - dh) / 2 + p.py * ry;
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+    if (p.fit && (dw < w - 1 || dh < h - 1)) drawBackdrop(g, im, x, y, w, h);
+    g.drawImage(im, dx, dy, dw, dh); g.restore();
   }
-  /* Einzelfoto ohne Text und Aufkleber, mittig zugeschnitten */
+  /* Einzelfoto ohne Text und Aufkleber (mittig, bei "ganzes Foto" ohne Zuschnitt) */
   function drawPlain(g, p) {
     g.clearRect(0, 0, W, VB.H());
-    drawPhotoIn(g, { work: p.work, zoom: 1, px: 0, py: 0 }, 0, 0, W, VB.H());
+    drawPhotoIn(g, { work: p.work, zoom: 1, px: 0, py: 0, fit: p.fit }, 0, 0, W, VB.H());
   }
 
   /* Zellen der Collage */
@@ -238,7 +254,7 @@
   function draw(g, o) {
     o = o || {};
     var it = o.item || VB.item(), H = VB.H(), st = s.style, none = VB.colNone(), T = it.texts, coll = it.collage, free = !!VB.FREE[coll];
-    var safeB = H > 1500 ? 230 : 0, safeT = H > 1500 ? 120 : 0;
+    var safeB = H >= 1900 ? 230 : 0, safeT = H >= 1900 ? 120 : 0;
     var title = T.title.trim(), parts = VB.subtitleParts(it);
     var area, shape, gap = st === "tise" ? 6 : 10, bgFill = "#ffffff", textInk = s.t;
     g.clearRect(0, 0, W, H);
@@ -251,7 +267,10 @@
       shape = function () { g.rect(area.x, area.y, area.w, area.h); };
     } else {
       background();
-      if (st === "karte") {
+      if (st === "leiste") {
+        area = { x: 0, y: 0, w: W, h: H - 330 - safeB };
+        shape = function () { g.rect(area.x, area.y, area.w, area.h); };
+      } else if (st === "karte") {
         var top = Math.round(H * 0.05) + safeT;
         area = { x: Math.round(W * 0.12), y: top, w: Math.round(W * 0.76), h: H - top - 340 - safeB };
         shape = function () { g.roundRect(area.x, area.y, area.w, area.h, s.radius); };
@@ -273,7 +292,7 @@
         area = { x: 50, y: ay, w: W - 100, h: H - ay - 56 - safeB };
         shape = function () { g.roundRect(area.x, area.y, area.w, area.h, s.radius); };
       }
-      if (!free && st !== "polaroid") { g.save(); g.shadowColor = "rgba(0,0,0,.28)"; g.shadowBlur = 60; g.shadowOffsetY = 30; g.fillStyle = "#fff"; g.beginPath(); shape(); g.fill(); g.restore(); }
+      if (!free && st !== "polaroid" && st !== "leiste") { g.save(); g.shadowColor = "rgba(0,0,0,.28)"; g.shadowBlur = 60; g.shadowOffsetY = 30; g.fillStyle = "#fff"; g.beginPath(); shape(); g.fill(); g.restore(); }
     }
 
     /* Fotos / Collage */
@@ -314,7 +333,8 @@
       }
     } else if (!none) {
       var ay0 = area.y + area.h;
-      if (st === "karte") textBlock(g, { title: titleStr(), parts: parts, align: "left", x: area.x, maxW: area.w, fsMax: 92, maxLines: 2, ink: s.t, anchor: "top", y: ay0 + 22 });
+      if (st === "leiste") textBlock(g, { title: titleStr(), parts: parts, align: "center", x: W / 2, maxW: W * 0.84, fsMax: 92, maxLines: 2, ink: s.t, anchor: "bottom", y: H - 64 - safeB });
+      else if (st === "karte") textBlock(g, { title: titleStr(), parts: parts, align: "left", x: area.x, maxW: area.w, fsMax: 92, maxLines: 2, ink: s.t, anchor: "top", y: ay0 + 22 });
       else if (st === "bogen") textBlock(g, { title: titleStr(), parts: parts, align: "center", x: W / 2, maxW: W * 0.84, fsMax: 92, maxLines: 2, ink: s.t, anchor: "top", y: ay0 + 22 });
       else if (st === "polaroid") textBlock(g, { title: titleStr(), parts: parts, align: "center", x: W / 2, maxW: area.w, fsMax: 96, maxLines: 2, ink: textInk, anchor: "top", y: ay0 + 14 });
     }

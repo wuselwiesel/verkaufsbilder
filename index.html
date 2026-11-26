@@ -30,6 +30,7 @@
       </div>
       <canvas id="cv" width="1080" height="1350" role="img" aria-label="Vorschau des Verkaufsbilds"></canvas>
       <p class="hint" id="dragHint">Foto oder Aufkleber im Bild ziehen</p>
+      <div class="actions"><button class="btn small" id="big" type="button">Vorschau in voller Größe</button></div>
       <div class="actions">
         <button class="btn primary" id="save" type="button" disabled>Als PNG speichern</button>
         <button class="btn" id="share" type="button" hidden>Teilen</button>
@@ -38,6 +39,7 @@
         <button class="btn" id="zip" type="button" disabled>Alle als ZIP speichern</button>
       </div>
       <label class="check"><input type="checkbox" id="singles"> Einzelfotos im ZIP mitspeichern</label>
+      <label class="check"><input type="checkbox" id="hires"> Hohe Auflösung speichern (doppelte Größe, 2160 px breit)</label>
       <p class="hint" id="hint"></p>
     </section>
 
@@ -77,6 +79,8 @@
             <div class="row"><button class="btn small danger" id="extrasClear" type="button">Weitere Fotos entfernen</button></div>
           </div>
           <div class="sliders"><label for="zoom">Zoom <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label></div>
+          <div class="row"><button class="btn small" id="fit" type="button" aria-pressed="false">Ganzes Foto zeigen</button></div>
+          <p class="hint left">„Ganzes Foto zeigen“ schneidet nichts ab. Der Rest der Fläche wird mit einer weichen Kopie des Fotos gefüllt. Für Ganzkörperfotos passt auch das Format „2:3 hoch“ im Reiter Stil.</p>
           <div class="row"><button class="btn small" id="rmPhoto" type="button">Foto entfernen</button><button class="btn small" id="resetPos" type="button">Ausschnitt zurücksetzen</button></div>
         </div>
         <div class="sec">
@@ -169,6 +173,10 @@
       </div>
     </section>
   </main>
+</div>
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Vorschau in voller Größe">
+  <button class="btn small" id="lbclose" type="button">Schließen</button>
+  <img id="lbimg" alt="Fertiges Verkaufsbild in voller Größe">
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="core.js"></script>

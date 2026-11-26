@@ -3,8 +3,8 @@ window.VB = (function () {
   "use strict";
   var W = 1080, uid = 0;
 
-  var FORMATS = [["4x5", "4:5", 1350], ["1x1", "1:1", 1080], ["9x16", "Story", 1920]];
-  var STYLES = [["tise", "Tise"], ["karte", "Karte"], ["bogen", "Bogen"], ["polaroid", "Polaroid"], ["magazin", "Magazin"]];
+  var FORMATS = [["4x5", "4:5", 1350], ["3x4", "3:4", 1440], ["2x3", "2:3 hoch", 1620], ["1x1", "1:1", 1080], ["9x16", "Story", 1920]];
+  var STYLES = [["tise", "Tise"], ["leiste", "Leiste"], ["karte", "Karte"], ["bogen", "Bogen"], ["polaroid", "Polaroid"], ["magazin", "Magazin"]];
   var COLLAGES = [["1", "Ein Foto"], ["2h", "Zwei nebeneinander"], ["2v", "Zwei untereinander"], ["3", "Drei Fotos"], ["4", "Vier Fotos"],
     ["2o", "Zwei überlappend"], ["3o", "Drei überlappend"], ["ba", "Vorher und Nachher"]];
   var COLL_N = { "1": 1, "2h": 2, "2v": 2, "3": 3, "4": 4, "2o": 2, "3o": 3, "ba": 2 };
@@ -91,7 +91,7 @@ window.VB = (function () {
 
   var s = {
     format: "4x5", style: "tise", font: 2, col: 1, t: "#f6efe4", g: "#000000", radius: 48, bg: "verlauf", shop: "",
-    items: [], cur: 0, singles: false,
+    items: [], cur: 0, singles: false, hires: false,
     ad: { platform: "vinted", versand: true, abholung: false, nichtraucher: false, tierfrei: false, vb: false, privat: true }
   };
 

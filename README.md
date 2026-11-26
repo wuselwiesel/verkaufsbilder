@@ -11,7 +11,9 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 - **Preis:** Alter Preis wird durchgestrichen. Der Aufkleber „Rabatt“ rechnet den Prozentsatz selbst aus.
 - **Hintergründe:** Verlauf, Papier, Holz, Leinen, Punkte, Streifen, Karo
 - **Rückgängig und Wiederholen** (auch mit Strg+Z und Strg+Y)
-- **Stile:** Tise, Karte, Bogen, Polaroid, Magazin. **Formate:** 4:5, 1:1, Story (9:16)
+- **Ganzes Foto zeigen:** Schneidet nichts ab, der Rest der Fläche wird mit einer weichen Kopie des Fotos gefüllt. Gut für Ganzkörperfotos.
+- **Große Bilder:** Größere Vorschau, „Vorschau in voller Größe“ und auf Wunsch Speichern in doppelter Auflösung (2160 px breit)
+- **Stile:** Tise, Leiste (Foto oben, Text in einer Leiste darunter), Karte, Bogen, Polaroid, Magazin. **Formate:** 4:5, 3:4, 2:3 hoch, 1:1, Story (9:16)
 - **Artikelart:** Kleidung, Schuhe, Taschen, Kinder, Bücher, Technik, Möbel, Spielzeug, Sonstiges. Felder, Schnellwahl (Größen, Zustand) und passende Aufkleber ändern sich mit der Art.
 - **Aufkleber:** Preis, Rabatt, NEU, SALE, Neuwertig, Reserviert, Verkauft, Versand inklusive und mehr, dazu Emojis. Frei verschieben, drehen, vergrößern.
 - **Foto verbessern:** Helligkeit, Kontrast, Farbe, „Automatisch verbessern“. **Farben und Schrift:** Paletten, eigene Farben, „Passend zum Foto“, sechs Schriften.
