@@ -1,8 +1,8 @@
-/* Bedienung: Serie, Fotos, Stile, Aufkleber, Anzeigentext, Rückgängig, Speichern */
+/* Bedienung: Serie, Fotos, Stile, Aufkleber, Rückgängig, Speichern */
 (function (VB) {
   "use strict";
   var s = VB.s, R = VB.render, W = VB.W;
-  var KEY = "verkaufsbilder-v3", toastT, adEdited = false;
+  var KEY = "verkaufsbilder-v3", toastT;
 
   function $(id) { return document.getElementById(id); }
   var cv = $("cv"), g = cv.getContext("2d");
@@ -46,7 +46,7 @@
   function snapshot(withPhotos) {
     return JSON.stringify({
       look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop },
-      ad: s.ad, singles: s.singles, hires: s.hires, items: s.items.map(function (x) { return iser(x, withPhotos); })
+      singles: s.singles, hires: s.hires, items: s.items.map(function (x) { return iser(x, withPhotos); })
     });
   }
   function pdes(po) {
@@ -85,10 +85,6 @@
     if (HEX.test(L.g)) s.g = L.g;
     if (typeof L.radius === "number") s.radius = clamp(L.radius, 0, 90);
     if (typeof L.shop === "string") s.shop = L.shop.slice(0, 20);
-    if (o.ad && typeof o.ad === "object") {
-      ["versand", "abholung", "nichtraucher", "tierfrei", "vb", "privat"].forEach(function (k) { if (typeof o.ad[k] === "boolean") s.ad[k] = o.ad[k]; });
-      if (["vinted", "tise", "kleinanzeigen"].indexOf(o.ad.platform) >= 0) s.ad.platform = o.ad.platform;
-    }
     s.singles = !!o.singles; s.hires = !!o.hires;
     if (Array.isArray(o.items) && o.items.length) s.items = o.items.slice(0, 30).map(normItem);
     s.cur = Math.min(s.cur, s.items.length - 1);
@@ -105,8 +101,8 @@
   function changed() { save(); clearTimeout(histT); histT = setTimeout(histPush, 450); syncUndo(); pendingFiles = null; setAllLabel(); scheduleWarm(); }
   function flush() { if (histT) { clearTimeout(histT); histPush(); } }
   function syncUndo() { $("undo").disabled = !(hi > 0 || histT); $("redo").disabled = !(hi < hist.length - 1); }
-  function undo() { flush(); if (hi > 0) { hi--; applyState(JSON.parse(hist[hi])); adEdited = false; refreshAll(); save(); syncUndo(); } }
-  function redo() { flush(); if (hi < hist.length - 1) { hi++; applyState(JSON.parse(hist[hi])); adEdited = false; refreshAll(); save(); syncUndo(); } }
+  function undo() { flush(); if (hi > 0) { hi--; applyState(JSON.parse(hist[hi])); refreshAll(); save(); syncUndo(); } }
+  function redo() { flush(); if (hi < hist.length - 1) { hi++; applyState(JSON.parse(hist[hi])); refreshAll(); save(); syncUndo(); } }
   $("undo").onclick = undo; $("redo").onclick = redo;
   document.addEventListener("keydown", function (e) {
     if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -128,24 +124,24 @@
     var box = $("series"); box.textContent = "";
     s.items.forEach(function (x, i) {
       var t = x.texts.title.trim() || "neu";
-      mkBtn(box, (i + 1) + ". " + (t.length > 14 ? t.slice(0, 13) + "…" : t), i === s.cur, function () { s.cur = i; adEdited = false; refreshAll(); });
+      mkBtn(box, (i + 1) + ". " + (t.length > 14 ? t.slice(0, 13) + "…" : t), i === s.cur, function () { s.cur = i; refreshAll(); });
     });
     $("itDel").disabled = s.items.length < 2;
   }
   $("itAdd").onclick = function () {
     if (s.items.length >= 30) { toast("Mehr als 30 Artikel gehen nicht."); return; }
-    s.items.push(VB.newItem(it())); s.cur = s.items.length - 1; adEdited = false; refreshAll(); changed();
+    s.items.push(VB.newItem(it())); s.cur = s.items.length - 1; refreshAll(); changed();
     toast("Neuer Artikel mit demselben Look. Lade jetzt die Fotos hoch.");
   };
   $("itDup").onclick = function () {
     if (s.items.length >= 30) { toast("Mehr als 30 Artikel gehen nicht."); return; }
     var c = VB.newItem(it()); Object.keys(c.texts).forEach(function (k) { c.texts[k] = it().texts[k]; });
     c.byType = JSON.parse(JSON.stringify(it().byType));
-    s.items.push(c); s.cur = s.items.length - 1; adEdited = false; refreshAll(); changed();
+    s.items.push(c); s.cur = s.items.length - 1; refreshAll(); changed();
   };
   $("itDel").onclick = function () {
     if (s.items.length < 2) return;
-    s.items.splice(s.cur, 1); s.cur = Math.min(s.cur, s.items.length - 1); adEdited = false; refreshAll(); changed();
+    s.items.splice(s.cur, 1); s.cur = Math.min(s.cur, s.items.length - 1); refreshAll(); changed();
   };
 
   /* Format, Stil, Hintergrund, Schrift, Farben */
@@ -335,7 +331,7 @@
   /* Text */
   ["title", "size", "price", "old", "extra"].forEach(function (k) {
     $(k).addEventListener("input", function () {
-      it().texts[k] = this.value; if (k === "title") buildSeries(); syncSticker(); genAd(); render(); changed();
+      it().texts[k] = this.value; if (k === "title") buildSeries(); syncSticker(); render(); changed();
     });
   });
   $("shop").addEventListener("input", function () { s.shop = this.value; render(); changed(); });
@@ -344,9 +340,9 @@
     var a = VB.article(), box = $("sizeChips"); box.textContent = "";
     $("sizeLabel").textContent = a.sizeLabel; $("size").placeholder = a.ph; $("title").placeholder = a.titlePh; $("extraLabel").textContent = a.extraLabel;
     box.hidden = a.sizes.length === 0;
-    a.sizes.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.size = v; $("size").value = v; genAd(); render(); changed(); }); });
+    a.sizes.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.size = v; $("size").value = v; render(); changed(); }); });
     box = $("condChips"); box.textContent = "";
-    a.conds.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.extra = v; $("extra").value = v; genAd(); render(); changed(); }); });
+    a.conds.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.extra = v; $("extra").value = v; render(); changed(); }); });
   }
   function buildArticles() {
     var sel = $("article"); sel.textContent = "";
@@ -360,7 +356,7 @@
     x.article = this.value;
     var m = x.byType[x.article] || { size: "", extra: "" };
     x.texts.size = m.size; x.texts.extra = m.extra; $("size").value = m.size; $("extra").value = m.extra;
-    buildChips(); buildLib(); genAd(); render(); changed();
+    buildChips(); buildLib(); render(); changed();
   });
 
   /* Aufkleber */
@@ -418,31 +414,6 @@
     var x = it(), k = selected(); if (!k || x.stickers.length >= 20) return;
     var c = JSON.parse(JSON.stringify(k)); c.id = VB.nextId(); c.x = clamp(k.x - 0.06, 0.05, 0.95); c.y = clamp(k.y + 0.06, 0.05, 0.95);
     x.stickers.push(c); x.selSticker = c.id; syncSticker(); render(); changed();
-  };
-
-  /* Anzeigentext */
-  function genAd() { if (!adEdited) $("adtext").value = VB.adText(it()); }
-  function syncAdUi() {
-    var box = $("adplat"); box.textContent = "";
-    [["vinted", "Vinted"], ["tise", "Tise"], ["kleinanzeigen", "Kleinanzeigen"]].forEach(function (p) {
-      mkBtn(box, p[1], s.ad.platform === p[0], function () { s.ad.platform = p[0]; syncAdUi(); genAd(); changed(); });
-    });
-    [["adVersand", "versand"], ["adAbholung", "abholung"], ["adNicht", "nichtraucher"], ["adTier", "tierfrei"], ["adVB", "vb"], ["adPrivat", "privat"]].forEach(function (c) { $(c[0]).checked = s.ad[c[1]]; });
-  }
-  [["adVersand", "versand"], ["adAbholung", "abholung"], ["adNicht", "nichtraucher"], ["adTier", "tierfrei"], ["adVB", "vb"], ["adPrivat", "privat"]].forEach(function (c) {
-    $(c[0]).addEventListener("change", function () { s.ad[c[1]] = this.checked; genAd(); changed(); });
-  });
-  $("adtext").addEventListener("input", function () { adEdited = true; });
-  $("adgen").onclick = function () { adEdited = false; genAd(); toast("Text neu erstellt."); };
-  $("adcopy").onclick = function () {
-    var ta = $("adtext");
-    function fallback() {
-      ta.focus(); ta.select();
-      try { if (document.execCommand("copy")) toast("Text kopiert."); else toast("Markiere den Text und kopiere ihn von Hand."); }
-      catch (e) { toast("Markiere den Text und kopiere ihn von Hand."); }
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { toast("Text kopiert."); }).catch(fallback);
-    else fallback();
   };
 
   /* Ziehen im Bild: Aufkleber verschieben, Foto verschieben, mit zwei Fingern zoomen */
@@ -631,8 +602,6 @@
     collect().then(function (entries) {
       return Promise.all(entries.map(function (e) { return blobBytes(e.blob).then(function (d) { return { name: e.name, data: d }; }); }));
     }).then(function (files) {
-      var texts = s.items.map(function (x, i) { return "=== " + ("0" + (i + 1)).slice(-2) + " · " + (x.texts.title.trim() || "Artikel") + " ===\n\n" + VB.adText(x); });
-      files.push({ name: "anzeigentexte.txt", data: new TextEncoder().encode(texts.join("\n\n\n") + "\n") });
       saveBlob(VB.zip(files), "verkaufsbilder.zip"); toast("ZIP gespeichert.");
     }).catch(function () { toast("Das ZIP konnte nicht erstellt werden."); });
   }
@@ -670,7 +639,7 @@
     ["title", "size", "price", "old", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
     $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("hires").checked = s.hires;
     buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
-    buildLib(); buildSeries(); syncPhoto(); syncSticker(); syncAdUi(); genAd(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
+    buildLib(); buildSeries(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
   }
 
   restore();

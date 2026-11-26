@@ -91,8 +91,7 @@ window.VB = (function () {
 
   var s = {
     format: "4x5", style: "tise", font: 2, col: 1, t: "#f6efe4", g: "#000000", radius: 48, bg: "verlauf", shop: "",
-    items: [], cur: 0, singles: false, hires: false,
-    ad: { platform: "vinted", versand: true, abholung: false, nichtraucher: false, tierfrei: false, vb: false, privat: true }
+    items: [], cur: 0, singles: false, hires: false
   };
 
   function nextId() { return ++uid; }
@@ -146,57 +145,10 @@ window.VB = (function () {
     return P;
   }
 
-  /* Anzeigentext aus Bausteinen (ohne KI) */
-  function adText(it) {
-    it = it || item();
-    var T = it.texts, a = article(it), ad = s.ad, title = T.title.trim() || "Artikel", size = T.size.trim(), price = T.price.trim(), old = T.old.trim(), ex = T.extra.trim();
-    var isCond = a.conds.indexOf(ex) >= 0 || a.extraLabel === "Zustand";
-    var info = [];
-    if (size) info.push(a.sizeLabel + ": " + size);
-    if (ex) info.push((isCond ? "Zustand" : "Marke / Zustand") + ": " + ex);
-    var priceLine = "";
-    if (price) {
-      priceLine = "Preis: " + price + " €" + (ad.vb ? " VB" : "");
-      if (old && oldValid(it)) priceLine += " (vorher " + old + " €, " + discount(it) + " % reduziert)";
-    }
-    var opts = [];
-    if (ad.versand) opts.push("Versand möglich");
-    if (ad.abholung) opts.push("Abholung möglich");
-    if (ad.nichtraucher) opts.push("Aus einem Nichtraucherhaushalt");
-    if (ad.tierfrei) opts.push("Aus einem tierfreien Haushalt");
-    var L = [];
-    if (ad.platform === "kleinanzeigen") {
-      L.push("Verkaufe: " + title, "");
-      info.forEach(function (x) { L.push(x); });
-      if (priceLine) L.push(priceLine);
-      if (opts.length) { L.push(""); opts.forEach(function (x) { L.push(x); }); }
-      if (ad.privat) L.push("", "Privatverkauf: keine Garantie, Rücknahme oder Gewährleistung.");
-      L.push("", "Bei Interesse einfach melden.");
-    } else if (ad.platform === "tise") {
-      L.push(title + " ✨");
-      if (info.length) L.push(info.join(" · "));
-      if (priceLine) L.push(priceLine);
-      if (opts.length) L.push(opts.join(" · "));
-      if (ad.privat) L.push("Privatverkauf, keine Rücknahme.");
-      var seen = {}, tags = [];
-      (title.toLowerCase().replace(/[^a-z0-9äöüß ]/g, " ").split(/\s+/).filter(function (w) { return w.length >= 3; }).slice(0, 4).concat(["secondhand", a.id]))
-        .forEach(function (w) { if (!seen[w]) { seen[w] = 1; tags.push("#" + w); } });
-      L.push("", tags.join(" "));
-    } else {
-      L.push(title, "");
-      info.forEach(function (x) { L.push(x); });
-      if (priceLine) L.push(priceLine);
-      if (opts.length) { L.push(""); opts.forEach(function (x) { L.push(x); }); }
-      if (ad.privat) L.push("Privatverkauf, daher keine Rücknahme.");
-      L.push("", "Bei Fragen melde dich gern! 🧡");
-    }
-    return L.join("\n");
-  }
-
   return {
     W: W, H: H, FORMATS: FORMATS, STYLES: STYLES, COLLAGES: COLLAGES, COLL_N: COLL_N, FREE: FREE, BGS: BGS, FONTS: FONTS, COLS: COLS,
     STK_COLORS: STK_COLORS, STK_KINDS: STK_KINDS, STICKERS: STICKERS, ARTICLES: ARTICLES, EMOJIS: EMOJIS, s: s,
-    item: item, newItem: newItem, nextId: nextId, article: article, subtitleParts: subtitleParts, adText: adText,
+    item: item, newItem: newItem, nextId: nextId, article: article, subtitleParts: subtitleParts,
     num: num, oldValid: oldValid, discount: discount,
     hexRgb: hexRgb, rgbHex: rgbHex, rgba: rgba, mix: mix, lum: lum, fontStr: fontStr,
     nCells: nCells, anyPhoto: anyPhoto, missing: missing, ready: ready, colNone: colNone

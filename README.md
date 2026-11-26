@@ -4,9 +4,8 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 
 ## Funktionen
 
-- **Serie:** Mehrere Artikel in einem Durchgang. Neue Artikel übernehmen Look, Collage und Aufkleber, Texte und Fotos sind frei. „Alle als ZIP speichern“ packt die Titelbilder aller Artikel und eine Datei mit den Anzeigentexten zusammen. Auf Wunsch kommen alle Einzelfotos als eigene Bilder dazu.
+- **Serie:** Mehrere Artikel in einem Durchgang. Neue Artikel übernehmen Look, Collage und Aufkleber, Texte und Fotos sind frei. „Alle als ZIP speichern“ packt die Titelbilder aller Artikel zusammen. Auf Wunsch kommen alle Einzelfotos als eigene Bilder dazu.
 - **Titelbild aus mehreren Fotos:** „Titelbild automatisch“ verteilt alle Fotos eines Artikels auf die passende Collage. Weitere Fotos bleiben als Einzelbilder erhalten.
-- **Anzeigentext:** Aus Titel, Größe, Preis und Zustand entsteht ein Text für Vinted, Tise oder Kleinanzeigen (mit Hashtags bei Tise). Optionen wie Versand, Abholung oder Nichtraucherhaushalt, frei bearbeitbar, mit „Kopieren“.
 - **Collagen:** ein bis vier Fotos (nebeneinander, untereinander, drei, vier), zwei oder drei überlappende Karten, Vorher und Nachher
 - **Preis:** Alter Preis wird durchgestrichen. Der Aufkleber „Rabatt“ rechnet den Prozentsatz selbst aus.
 - **Hintergründe:** Verlauf, Papier, Holz, Leinen, Punkte, Streifen, Karo
@@ -22,7 +21,7 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 
 ## Dateien
 
-- `core.js` Zustand, Konstanten, Anzeigentext
+- `core.js` Zustand und Konstanten
 - `render.js` Zeichnen auf dem Canvas
 - `ui.js` Bedienung
 - `zip.js` einfacher ZIP-Schreiber

@@ -62,7 +62,6 @@
         <button role="tab" type="button" data-tab="stil" aria-selected="false">Stil</button>
         <button role="tab" type="button" data-tab="text" aria-selected="false">Text</button>
         <button role="tab" type="button" data-tab="aufkleber" aria-selected="false">Aufkleber</button>
-        <button role="tab" type="button" data-tab="anzeige" aria-selected="false">Anzeige</button>
       </div>
 
       <div class="tabpane" data-pane="foto">
@@ -157,23 +156,6 @@
         </div>
       </div>
 
-      <div class="tabpane" data-pane="anzeige" hidden>
-        <div class="sec">
-          <h2>Anzeigentext</h2>
-          <div class="seg" id="adplat"></div>
-          <div class="checks">
-            <label class="check"><input type="checkbox" id="adVersand"> Versand möglich</label>
-            <label class="check"><input type="checkbox" id="adAbholung"> Abholung möglich</label>
-            <label class="check"><input type="checkbox" id="adNicht"> Nichtraucherhaushalt</label>
-            <label class="check"><input type="checkbox" id="adTier"> Tierfreier Haushalt</label>
-            <label class="check"><input type="checkbox" id="adVB"> Preis verhandelbar (VB)</label>
-            <label class="check"><input type="checkbox" id="adPrivat"> Privatverkauf, keine Rücknahme</label>
-          </div>
-          <textarea id="adtext" rows="11" aria-label="Anzeigentext"></textarea>
-          <div class="row"><button class="btn small primary" id="adcopy" type="button">Text kopieren</button><button class="btn small" id="adgen" type="button">Neu erstellen</button></div>
-          <p class="hint left">Der Text entsteht aus deinen Angaben (Titel, Größe, Preis, Zustand). Du kannst ihn danach frei ändern. Im ZIP liegen die Texte aller Artikel in einer Datei.</p>
-        </div>
-      </div>
     </section>
   </main>
 </div>
