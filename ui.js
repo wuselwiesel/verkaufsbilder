@@ -57,6 +57,13 @@
     if (na.b !== p.adj.b || na.c !== p.adj.c || na.s !== p.adj.s) { p.adj = na; R.buildWork(p); }
     return p;
   }
+  function cleanStickers(arr) {
+    return arr.slice(0, 20).filter(function (k) { return k && typeof k.kind === "string"; }).map(function (k) {
+      var kind = ["kreis", "stern", "pille", "etikett", "emoji"].indexOf(k.kind) >= 0 ? k.kind : "kreis";
+      return { id: VB.nextId(), kind: kind, text: String(k.text || "").slice(0, 24), auto: k.auto === "price" || k.auto === "discount" ? k.auto : undefined,
+        color: HEX.test(k.color) ? k.color : "#ffffff", x: clamp(+k.x || 0.5, 0, 1), y: clamp(+k.y || 0.2, 0, 1), size: clamp(+k.size || 1, 0.4, 2.2), rot: clamp(+k.rot || 0, -45, 45) };
+    });
+  }
   function normItem(o) {
     var x = VB.newItem(null); if (!o || typeof o !== "object") return x;
     if (VB.ARTICLES.some(function (a) { return a.id === o.article; })) x.article = o.article;
@@ -67,15 +74,12 @@
     if (VB.COLL_N[o.collage]) x.collage = o.collage;
     x.photos = [0, 1, 2, 3].map(function (i) { return pdes((o.photos || [])[i]); });
     x.extras = (o.extras || []).map(pdes).filter(Boolean);
-    if (Array.isArray(o.stickers)) x.stickers = o.stickers.slice(0, 20).filter(function (k) { return k && typeof k.kind === "string"; }).map(function (k) {
-      var kind = ["kreis", "stern", "pille", "etikett", "emoji"].indexOf(k.kind) >= 0 ? k.kind : "kreis";
-      return { id: VB.nextId(), kind: kind, text: String(k.text || "").slice(0, 24), auto: k.auto === "price" || k.auto === "discount" ? k.auto : undefined,
-        color: HEX.test(k.color) ? k.color : "#ffffff", x: clamp(+k.x || 0.5, 0, 1), y: clamp(+k.y || 0.2, 0, 1), size: clamp(+k.size || 1, 0.4, 2.2), rot: clamp(+k.rot || 0, -45, 45) };
-    });
+    if (Array.isArray(o.stickers)) x.stickers = cleanStickers(o.stickers);
     return x;
   }
-  function applyState(o) {
-    var L = o.look || {}, has = function (list, v) { return list.some(function (x) { return x[0] === v; }); };
+  function applyLook(L) {
+    var has = function (list, v) { return list.some(function (x) { return x[0] === v; }); };
+    L = L || {};
     if (has(VB.FORMATS, L.format)) s.format = L.format;
     if (has(VB.STYLES, L.style)) s.style = L.style;
     if (has(VB.BGS, L.bg)) s.bg = L.bg;
@@ -85,6 +89,9 @@
     if (HEX.test(L.g)) s.g = L.g;
     if (typeof L.radius === "number") s.radius = clamp(L.radius, 0, 90);
     if (typeof L.shop === "string") s.shop = L.shop.slice(0, 20);
+  }
+  function applyState(o) {
+    applyLook(o.look);
     s.singles = !!o.singles; s.hires = !!o.hires;
     if (Array.isArray(o.items) && o.items.length) s.items = o.items.slice(0, 30).map(normItem);
     s.cur = Math.min(s.cur, s.items.length - 1);
@@ -104,6 +111,11 @@
   function undo() { flush(); if (hi > 0) { hi--; applyState(JSON.parse(hist[hi])); refreshAll(); save(); syncUndo(); } }
   function redo() { flush(); if (hi < hist.length - 1) { hi++; applyState(JSON.parse(hist[hi])); refreshAll(); save(); syncUndo(); } }
   $("undo").onclick = undo; $("redo").onclick = redo;
+  /* Jeder Klick auf einen Knopf ist ein eigener Schritt: vorher Angefangenes wird zuerst festgehalten.
+     Nur Eingaben (Schieberegler, Tippen, Ziehen) werden kurz zusammengefasst. */
+  document.addEventListener("click", function (e) { if (e.target.closest && e.target.closest("button, summary, label")) flush(); }, true);
+  document.addEventListener("change", function (e) { if (e.target.tagName === "SELECT") flush(); }, true);
+  cv.addEventListener("pointerdown", flush, true);
   document.addEventListener("keydown", function (e) {
     if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     var k = e.key.toLowerCase();
@@ -142,6 +154,49 @@
   $("itDel").onclick = function () {
     if (s.items.length < 2) return;
     s.items.splice(s.cur, 1); s.cur = Math.min(s.cur, s.items.length - 1); refreshAll(); changed();
+  };
+
+  /* Meine Stile: Look und Aufkleber unter einem Namen speichern (nur auf diesem Gerät) */
+  var LOOKS_KEY = "verkaufsbilder-stile-v1", looks = [];
+  function loadLooks() {
+    try {
+      var a = JSON.parse(localStorage.getItem(LOOKS_KEY) || "[]");
+      if (Array.isArray(a)) looks = a.filter(function (p) { return p && typeof p.name === "string" && p.look && typeof p.look === "object"; }).slice(0, 20);
+    } catch (e) {}
+  }
+  function saveLooks() { try { localStorage.setItem(LOOKS_KEY, JSON.stringify(looks)); return true; } catch (e) { toast("Der Stil konnte nicht gespeichert werden. Der Browser blockiert den Speicher."); return false; } }
+  function stripSticker(k) { return { kind: k.kind, text: k.text, auto: k.auto, color: k.color, x: k.x, y: k.y, size: k.size, rot: k.rot }; }
+  function applyPreset(p, all) {
+    applyLook(p.look);
+    var targets = all ? s.items : [it()], st = Array.isArray(p.stickers) ? p.stickers : [];
+    targets.forEach(function (x) { x.stickers = cleanStickers(st); x.selSticker = null; });
+    refreshAll(); changed();
+    toast("Stil „" + p.name + "“ angewendet" + (all ? " (alle Artikel)." : "."));
+  }
+  function buildLooks() {
+    var box = $("looks"); box.textContent = ""; $("looksEmpty").hidden = looks.length > 0;
+    looks.forEach(function (p, i) {
+      var row = document.createElement("div"); row.className = "look";
+      var main = document.createElement("button"); main.type = "button"; main.className = "look-main"; main.title = "Stil anwenden";
+      var sw = document.createElement("span"); sw.className = "lsw"; sw.style.background = HEX.test(p.look.g) ? p.look.g : "#000";
+      var dot = document.createElement("i"); dot.style.background = HEX.test(p.look.t) ? p.look.t : "#fff"; sw.appendChild(dot);
+      var nm = document.createElement("span"); nm.textContent = p.name;
+      main.appendChild(sw); main.appendChild(nm); main.onclick = function () { applyPreset(p, false); };
+      row.appendChild(main);
+      if (s.items.length > 1) mkBtn(row, "Alle Artikel", null, function () { applyPreset(p, true); }, "btn small");
+      var del = mkBtn(row, "✕", null, function () { looks.splice(i, 1); saveLooks(); buildLooks(); toast("Stil gelöscht."); }, "btn small danger");
+      del.setAttribute("aria-label", "Stil „" + p.name + "“ löschen");
+      box.appendChild(row);
+    });
+  }
+  $("lookSave").onclick = function () {
+    var name = $("lookName").value.trim() || "Stil " + (looks.length + 1), x = it();
+    var p = { name: name.slice(0, 24),
+      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop },
+      stickers: x.stickers.map(stripSticker) };
+    var at = -1; looks.forEach(function (q, i) { if (q.name.toLowerCase() === p.name.toLowerCase()) at = i; });
+    if (at >= 0) looks[at] = p; else if (looks.length >= 20) { toast("Mehr als 20 Stile gehen nicht. Lösche zuerst einen."); return; } else looks.push(p);
+    if (saveLooks()) { buildLooks(); $("lookName").value = ""; toast(at >= 0 ? "Stil „" + p.name + "“ aktualisiert." : "Stil „" + p.name + "“ gespeichert."); }
   };
 
   /* Format, Stil, Hintergrund, Schrift, Farben */
@@ -639,11 +694,11 @@
     ["title", "size", "price", "old", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
     $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("hires").checked = s.hires;
     buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
-    buildLib(); buildSeries(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
+    buildLib(); buildSeries(); buildLooks(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
   }
 
-  restore();
-  refreshAll(); histPush();
+  restore(); loadLooks();
+  refreshAll(); buildLooks(); histPush();
   if (document.fonts && document.fonts.load) {
     Promise.all(VB.FONTS.map(function (f) { return document.fonts.load(f.css.replace("{s}", 60)); })
       .concat([document.fonts.load("400 60px 'Pacifico'"), document.fonts.load("700 46px 'DM Sans'"), document.fonts.load("800 60px 'Bricolage Grotesque'")]))
