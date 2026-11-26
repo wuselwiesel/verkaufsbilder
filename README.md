@@ -4,6 +4,7 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 
 ## Funktionen
 
+- **Handy:** Vorschau oben, Speichern-Leiste immer unten, kleine Live-Vorschau beim Scrollen durch die Einstellungen. Ein Tipp auf das leere Bild öffnet die Fotoauswahl.
 - **Meine Stile:** Format, Stil, Hintergrund, Schrift, Farben, Shop-Name und Aufkleber unter einem Namen speichern und mit einem Tipp wieder anwenden (auch auf alle Artikel der Serie). Die Stile bleiben auf dem Gerät.
 - **Serie:** Mehrere Artikel in einem Durchgang. Neue Artikel übernehmen Look, Collage und Aufkleber, Texte und Fotos sind frei. „Alle als ZIP speichern“ packt die Titelbilder aller Artikel zusammen. Auf Wunsch kommen alle Einzelfotos als eigene Bilder dazu.
 - **Titelbild aus mehreren Fotos:** „Titelbild automatisch“ verteilt alle Fotos eines Artikels auf die passende Collage. Weitere Fotos bleiben als Einzelbilder erhalten.

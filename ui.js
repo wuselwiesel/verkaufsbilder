@@ -24,15 +24,26 @@
   var HEX = /^#[0-9a-f]{6}$/i;
 
   /* Zeichnen */
-  var pending = false;
+  var pending = false, mini = $("mini"), mg = mini.getContext("2d"), miniOn = false;
+  var MOBILE = window.matchMedia ? window.matchMedia("(max-width: 800px)") : { matches: false };
   function render() {
     if (pending) return; pending = true;
-    requestAnimationFrame(function () { pending = false; R.draw(g); });
+    requestAnimationFrame(function () {
+      pending = false; R.draw(g);
+      if (miniOn) mg.drawImage(cv, 0, 0, mini.width, mini.height);
+    });
   }
   function setSize() {
     var H = VB.H(); cv.width = W; cv.height = H;
-    cv.style.width = "min(100%, " + (82 * W / H).toFixed(2) + "vh)"; cv.style.aspectRatio = W + " / " + H;
+    document.documentElement.style.setProperty("--ar", (W / H).toFixed(4));
+    mini.width = 192; mini.height = Math.round(192 * H / W);
   }
+  /* Kleine Live-Vorschau, solange die große nicht im Bild ist (Handy) */
+  function setMini(on) { miniOn = on && MOBILE.matches; mini.classList.toggle("on", miniOn); if (miniOn) render(); }
+  if (window.IntersectionObserver) {
+    new IntersectionObserver(function (e) { setMini(!e[0].isIntersecting); }, { threshold: 0.15 }).observe($("preview"));
+  }
+  mini.addEventListener("click", function () { $("big").click(); });
 
   /* Zustand sichern: Speicher im Browser (ohne Fotos) und Verlauf für Rückgängig (mit Fotos) */
   function pser(p) { return p ? { id: p.id, zoom: p.zoom, px: p.px, py: p.py, fit: !!p.fit, adj: { b: p.adj.b, c: p.adj.c, s: p.adj.s } } : null; }
@@ -140,11 +151,12 @@
   /* Serie */
   function buildSeries() {
     var box = $("series"); box.textContent = "";
+    box.hidden = s.items.length < 2; $("itDel").hidden = s.items.length < 2;
     s.items.forEach(function (x, i) {
       var t = x.texts.title.trim() || "neu";
       mkBtn(box, (i + 1) + ". " + (t.length > 14 ? t.slice(0, 13) + "…" : t), i === s.cur, function () { s.cur = i; refreshAll(); });
     });
-    $("itDel").disabled = s.items.length < 2;
+    var cur = box.querySelector('[aria-pressed="true"]'); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest", inline: "center" });
   }
   $("itAdd").onclick = function () {
     if (s.items.length >= 30) { toast("Mehr als 30 Artikel gehen nicht."); return; }
@@ -181,6 +193,8 @@
   }
   function buildLooks() {
     var box = $("looks"); box.textContent = ""; $("looksEmpty").hidden = looks.length > 0;
+    $("looksSum").textContent = looks.length ? "Meine Stile (" + looks.length + ")" : "Meine Stile";
+    if (looks.length && !buildLooks.shown) { $("looksBox").open = true; buildLooks.shown = true; }
     looks.forEach(function (p, i) {
       var row = document.createElement("div"); row.className = "look";
       var main = document.createElement("button"); main.type = "button"; main.className = "look-main"; main.title = "Stil anwenden";
@@ -307,12 +321,15 @@
     $("autoCover").disabled = x.photos.filter(Boolean).length + x.extras.length < 2;
   }
   function updateStatus() {
-    var x = it(), m = VB.missing(x), bad = -1, all = true, h = $("hint");
+    var x = it(), m = VB.missing(x), bad = -1, all = true, h = $("hint"), has = VB.anyPhoto(x);
     s.items.forEach(function (y, i) { if (!VB.ready(y)) { all = false; if (bad < 0) bad = i + 1; } });
-    h.textContent = !VB.anyPhoto(x) ? "Das ist ein Beispielfoto. Lade dein eigenes Foto hoch, dann kannst du speichern."
-      : m > 0 ? "Noch " + m + (m === 1 ? " Foto fehlt." : " Fotos fehlen.")
-      : !all ? "Dieser Artikel ist fertig. Bei Artikel " + bad + " fehlen noch Fotos." : "Fertig. Du kannst speichern.";
-    if (typeof setAllLabel === "function") setAllLabel();
+    $("emptyCta").hidden = has; $("drop").classList.toggle("compact", has);
+    var how = SHARE_FIRST ? "Es öffnet sich ein Menü: dort „Bild sichern“ wählen." : "";
+    h.textContent = !has ? "Das ist ein Beispielfoto. Lade dein eigenes Foto hoch, dann kannst du speichern."
+      : m > 0 ? "Noch " + m + (m === 1 ? " Foto fehlt." : " Fotos fehlen.") + " Tippe im Bild auf das leere Feld."
+      : !all ? "Dieser Artikel ist fertig. Bei Artikel " + bad + " fehlen noch Fotos."
+      : "Fertig. Ziehe Foto oder Aufkleber im Bild zurecht. " + how;
+    setAllLabel();
   }
   function loadImg(file) {
     return new Promise(function (res) {
@@ -348,6 +365,14 @@
   ["dragenter", "dragover"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); }); });
   ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove("over"); }); });
   drop.addEventListener("drop", function (ev) { loadFiles(ev.dataTransfer.files); });
+
+  $("pick").onclick = function () { $("file").click(); };
+  var pv = $("preview");
+  ["dragenter", "dragover"].forEach(function (e) { pv.addEventListener(e, function (ev) { ev.preventDefault(); }); });
+  pv.addEventListener("drop", function (ev) { ev.preventDefault(); if (ev.dataTransfer && ev.dataTransfer.files.length) loadFiles(ev.dataTransfer.files); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type === "text") e.target.blur();
+  });
 
   /* Titelbild automatisch: alle Fotos verteilen sich auf die passende Collage, der Rest bleibt Einzelfoto */
   $("autoCover").onclick = function () {
@@ -532,6 +557,7 @@
     }
     var k = hitSticker(p);
     if (k) {
+      document.querySelector('#tabs [data-tab="aufkleber"]').click();
       x.selSticker = k.id; drag = { type: "st", k: k, ox: p.x - k.x * W, oy: p.y - k.y * VB.H(), moved: false };
       buildCells(); syncSticker(); render(); return;
     }
@@ -651,11 +677,6 @@
         toast("Das Teilen-Menü ging nicht auf. Nutze „Alles als ZIP-Datei laden“ unter Speicher-Optionen.");
       });
   }
-  function saveHelp() {
-    $("saveHelp").textContent = SHARE_FIRST ? "Es öffnet sich ein Menü. Wähle dort „Bild sichern“, dann liegt das Bild in deinen Fotos."
-      : IOS || /Android/.test(navigator.userAgent) ? "Das Bild landet in deinen Downloads." : "Das Bild landet in deinem Download-Ordner.";
-  }
-
   $("save").addEventListener("click", function () {
     if (pendingFiles && pendingFiles.length === 1) { shareFiles(pendingFiles); return; }
     var x = it(); if (!ensureReady([x])) return;
@@ -717,7 +738,7 @@
     ["title", "size", "price", "old", "brand", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
     $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("showBrand").checked = s.showBrand; $("showCond").checked = s.showCond; buildBrandChips(); $("hires").checked = s.hires;
     buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
-    buildLib(); buildSeries(); buildLooks(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
+    buildLib(); buildSeries(); buildLooks(); syncPhoto(); syncSticker(); updateStatus(); setSize(); render(); scheduleWarm();
   }
 
   restore(); loadLooks();

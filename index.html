@@ -17,43 +17,52 @@
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header class="topbar">
     <h1>Verkaufsbild Studio</h1>
-    <p class="sub">Fotos hochladen, Stil wählen, Aufkleber setzen, als PNG speichern.</p>
+    <p class="sub">Foto hochladen, Stil wählen, speichern.</p>
   </header>
 
   <main class="grid">
     <section class="stage" aria-label="Vorschau">
-      <div class="undo">
-        <button class="btn small" id="undo" type="button" aria-label="Rückgängig" disabled>↶ Rückgängig</button>
-        <button class="btn small" id="redo" type="button" aria-label="Wiederholen" disabled>Wiederholen ↷</button>
+      <div class="preview" id="preview">
+        <div class="ptools">
+          <div class="pgroup">
+            <button class="ibtn" id="undo" type="button" aria-label="Rückgängig" title="Rückgängig (Strg+Z)" disabled>↶<span>Zurück</span></button>
+            <button class="ibtn" id="redo" type="button" aria-label="Wiederholen" title="Wiederholen (Strg+Y)" disabled>↷<span>Vor</span></button>
+          </div>
+          <button class="ibtn" id="big" type="button" aria-label="Vorschau in voller Größe">⤢<span>Groß ansehen</span></button>
+        </div>
+        <div class="canvaswrap">
+          <canvas id="cv" width="1080" height="1350" role="img" aria-label="Vorschau des Verkaufsbilds"></canvas>
+          <div class="empty" id="emptyCta">
+            <button class="btn primary big" id="pick" type="button">Foto auswählen</button>
+            <span>oder ein Foto hierher ziehen</span>
+          </div>
+        </div>
       </div>
-      <canvas id="cv" width="1080" height="1350" role="img" aria-label="Vorschau des Verkaufsbilds"></canvas>
-      <p class="hint" id="dragHint">Foto oder Aufkleber im Bild ziehen</p>
-      <div class="actions"><button class="btn primary big" id="save" type="button">Bild speichern</button></div>
-      <div class="actions"><button class="btn big" id="all" type="button" hidden>Alle Bilder speichern</button></div>
-      <p class="hint" id="saveHelp"></p>
-      <div class="actions">
-        <button class="btn small" id="share" type="button" hidden>Teilen</button>
-        <button class="btn small" id="big" type="button">Vorschau in voller Größe</button>
+      <p class="hint" id="hint"></p>
+
+      <div class="savebar" id="savebar">
+        <button class="btn primary big" id="save" type="button">Bild speichern</button>
+        <button class="btn big" id="all" type="button" hidden>Alle Bilder speichern</button>
       </div>
+
       <details class="opts">
-        <summary>Speicher-Optionen</summary>
+        <summary>Mehr zum Speichern</summary>
+        <button class="btn small" id="share" type="button" hidden>Bild teilen</button>
         <label class="check"><input type="checkbox" id="singles"> Einzelfotos mitspeichern (jedes Foto als eigenes Bild)</label>
         <label class="check"><input type="checkbox" id="hires"> Hohe Auflösung (doppelte Größe, 2160 px breit)</label>
         <button class="btn small" id="zip" type="button">Alles als ZIP-Datei laden</button>
       </details>
-      <p class="hint" id="hint"></p>
     </section>
 
     <section class="panel" aria-label="Einstellungen">
-      <div class="sec">
-        <h2>Artikel in dieser Serie</h2>
-        <div class="seg" id="series"></div>
+      <div class="sec" id="seriesSec">
+        <div class="seg scroll" id="series" hidden></div>
         <div class="row">
-          <button class="btn small" id="itAdd" type="button">+ Neuer Artikel</button>
+          <button class="btn small" id="itAdd" type="button">+ Weiterer Artikel</button>
           <button class="btn small" id="itDup" type="button">Duplizieren</button>
-          <button class="btn small danger" id="itDel" type="button">Entfernen</button>
+          <button class="btn small danger" id="itDel" type="button" hidden>Entfernen</button>
         </div>
       </div>
 
@@ -65,7 +74,6 @@
       </div>
 
       <div class="tabpane" data-pane="foto">
-        <div class="sec"><h2>Collage</h2><div class="seg icons" id="collage"></div></div>
         <div class="sec">
           <h2>Fotos</h2>
           <div class="seg" id="cells"></div>
@@ -80,40 +88,40 @@
             <div class="chips" id="extras"></div>
             <div class="row"><button class="btn small danger" id="extrasClear" type="button">Weitere Fotos entfernen</button></div>
           </div>
-          <div class="sliders"><label for="zoom">Zoom <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label></div>
-          <div class="row"><button class="btn small" id="fit" type="button" aria-pressed="false">Ganzes Foto zeigen</button></div>
-          <p class="hint left">„Ganzes Foto zeigen“ schneidet nichts ab. Der Rest der Fläche wird mit einer weichen Kopie des Fotos gefüllt. Für Ganzkörperfotos passt auch das Format „2:3 hoch“ im Reiter Stil.</p>
-          <div class="row"><button class="btn small" id="rmPhoto" type="button">Foto entfernen</button><button class="btn small" id="resetPos" type="button">Ausschnitt zurücksetzen</button></div>
         </div>
+        <div class="sec"><h2>Collage</h2><div class="seg icons" id="collage"></div></div>
         <div class="sec">
-          <h2>Foto verbessern</h2>
+          <h2>Ausschnitt</h2>
+          <div class="sliders"><label for="zoom">Zoom <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label></div>
+          <div class="row">
+            <button class="btn small" id="fit" type="button" aria-pressed="false">Ganzes Foto zeigen</button>
+            <button class="btn small" id="resetPos" type="button">Zurücksetzen</button>
+            <button class="btn small danger" id="rmPhoto" type="button">Foto entfernen</button>
+          </div>
+          <p class="hint left">„Ganzes Foto zeigen“ schneidet nichts ab. Der Rest wird mit einer weichen Kopie des Fotos gefüllt. Für Ganzkörperfotos passt auch das Format „2:3 hoch“.</p>
+        </div>
+        <details class="fold">
+          <summary>Foto verbessern</summary>
           <div class="sliders">
             <label for="adjB">Helligkeit <input type="range" id="adjB" min="-50" max="50" step="1" value="0"></label>
             <label for="adjC">Kontrast <input type="range" id="adjC" min="-50" max="50" step="1" value="0"></label>
             <label for="adjS">Farbe <input type="range" id="adjS" min="-100" max="100" step="1" value="0"></label>
           </div>
           <div class="row"><button class="btn small" id="auto" type="button">Automatisch verbessern</button><button class="btn small" id="adjReset" type="button">Zurücksetzen</button></div>
-        </div>
+        </details>
       </div>
 
       <div class="tabpane" data-pane="stil" hidden>
-        <div class="sec">
-          <h2>Meine Stile</h2>
+        <details class="fold" id="looksBox">
+          <summary id="looksSum">Meine Stile</summary>
           <div class="row nowrap">
-            <input type="text" id="lookName" maxlength="24" placeholder="Name, z. B. Mein Shop" aria-label="Name für den Stil">
-            <button class="btn small primary" id="lookSave" type="button">Stil speichern</button>
+            <input type="text" id="lookName" maxlength="24" placeholder="Name, z. B. Mein Shop" aria-label="Name für den Stil" enterkeyhint="done">
+            <button class="btn small primary" id="lookSave" type="button">Aktuellen Stil speichern</button>
           </div>
           <div class="looks" id="looks"></div>
-          <p class="hint left" id="looksEmpty">Noch kein Stil gespeichert. Stelle unten alles ein und speichere es hier. Gespeichert werden Format, Stil, Hintergrund, Schrift, Farben, Shop-Name und die Aufkleber dieses Artikels. Die Stile bleiben auf diesem Gerät.</p>
-        </div>
-        <div class="sec"><h2>Format</h2><div class="seg" id="formats"></div></div>
+          <p class="hint left" id="looksEmpty">Gespeichert werden Format, Stil, Hintergrund, Schrift, Farben, Shop-Name und die Aufkleber. Die Stile bleiben auf diesem Gerät.</p>
+        </details>
         <div class="sec"><h2>Stil</h2><div class="seg" id="styles"></div></div>
-        <div class="sec">
-          <h2>Hintergrund</h2>
-          <div class="seg" id="bgs"></div>
-          <p class="hint left">Zu sehen bei Karte, Bogen, Polaroid, Magazin und bei überlappenden Collagen. Die Grundfarbe ist die „Verlauf / Hintergrund“-Farbe unten.</p>
-        </div>
-        <div class="sec"><h2>Schrift</h2><div class="seg" id="fonts"></div></div>
         <div class="sec">
           <h2>Farben</h2>
           <div class="swatches" id="cols"></div>
@@ -122,6 +130,13 @@
             <label for="cg">Verlauf / Hintergrund <input type="color" id="cg" value="#000000"></label>
             <button class="btn small" id="fromPhoto" type="button">Passend zum Foto</button>
           </div>
+        </div>
+        <div class="sec"><h2>Schrift</h2><div class="seg" id="fonts"></div></div>
+        <div class="sec"><h2>Format</h2><div class="seg" id="formats"></div></div>
+        <div class="sec">
+          <h2>Hintergrund</h2>
+          <div class="seg" id="bgs"></div>
+          <p class="hint left">Zu sehen bei Karte, Bogen, Polaroid, Magazin, Leiste und überlappenden Collagen. Die Grundfarbe ist „Verlauf / Hintergrund“ oben.</p>
         </div>
         <div class="sec sliders"><label for="radius">Ecken <input type="range" id="radius" min="0" max="90" step="1" value="48"></label></div>
       </div>
@@ -132,23 +147,26 @@
           <select id="article" aria-label="Artikelart"></select>
         </div>
         <div class="sec">
-          <h2>Text</h2>
+          <h2>Angaben</h2>
           <div class="fields">
-            <label class="full" for="title">Titel <input type="text" id="title" maxlength="50"></label>
-            <label for="size"><span id="sizeLabel">Größe</span> <input type="text" id="size" maxlength="24"></label>
-            <label for="price">Preis in € <input type="text" id="price" maxlength="7" inputmode="decimal"></label>
+            <label class="full" for="title">Titel <input type="text" id="title" maxlength="50" enterkeyhint="done"></label>
+            <label for="size"><span id="sizeLabel">Größe</span> <input type="text" id="size" maxlength="24" enterkeyhint="done"></label>
+            <label for="price">Preis in € <input type="text" id="price" maxlength="7" inputmode="decimal" enterkeyhint="done"></label>
             <div class="full chips" id="sizeChips" aria-label="Größe wählen"></div>
-            <label class="full" for="old">Alter Preis in € (wird durchgestrichen, optional) <input type="text" id="old" maxlength="7" inputmode="decimal"></label>
-            <label class="full" for="brand"><span id="brandLabel">Marke</span> <input type="text" id="brand" maxlength="24" autocomplete="off"></label>
+            <label class="full" for="old">Alter Preis in € (wird durchgestrichen, optional) <input type="text" id="old" maxlength="7" inputmode="decimal" enterkeyhint="done"></label>
+            <label class="full" for="brand"><span id="brandLabel">Marke</span> <input type="text" id="brand" maxlength="24" autocomplete="off" enterkeyhint="done"></label>
             <div class="full chips" id="brandChips" aria-label="Zuletzt genutzte Marken"></div>
-            <label class="full" for="extra"><span id="extraLabel">Zustand</span> <input type="text" id="extra" maxlength="24"></label>
+            <label class="full" for="extra"><span id="extraLabel">Zustand</span> <input type="text" id="extra" maxlength="24" enterkeyhint="done"></label>
             <div class="full chips" id="condChips" aria-label="Zustand wählen"></div>
-            <div class="full checks">
-              <label class="check"><input type="checkbox" id="showBrand"> Marke im Bild zeigen</label>
-              <label class="check"><input type="checkbox" id="showCond"> Zustand im Bild zeigen</label>
-            </div>
-            <label class="full" for="shop">Shop-Name im Foto (optional, gilt für die ganze Serie) <input type="text" id="shop" maxlength="20"></label>
           </div>
+        </div>
+        <div class="sec">
+          <h2>Im Bild zeigen</h2>
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="showBrand"> Marke</label>
+            <label class="check"><input type="checkbox" id="showCond"> Zustand</label>
+          </div>
+          <label for="shop">Shop-Name im Foto (optional, für die ganze Serie) <input type="text" id="shop" maxlength="20" enterkeyhint="done"></label>
         </div>
       </div>
 
@@ -159,7 +177,7 @@
           <div class="seg" id="stlist"></div>
           <p class="hint left" id="stempty">Noch kein Aufkleber gesetzt.</p>
           <div id="sted" hidden class="sec">
-            <label class="full" for="sttext">Text <input type="text" id="sttext" maxlength="24"></label>
+            <label class="full" for="sttext">Text <input type="text" id="sttext" maxlength="24" enterkeyhint="done"></label>
             <div class="seg" id="stkind"></div>
             <div class="swatches" id="stcol"></div>
             <div class="sliders">
@@ -170,10 +188,11 @@
           </div>
         </div>
       </div>
-
     </section>
   </main>
 </div>
+
+<canvas class="mini" id="mini" aria-hidden="true"></canvas>
 <div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Vorschau in voller Größe">
   <button class="btn small" id="lbclose" type="button">Schließen</button>
   <img id="lbimg" alt="Fertiges Verkaufsbild in voller Größe">
