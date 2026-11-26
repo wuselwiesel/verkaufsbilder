@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Verkaufsbild Studio</title>
-  <meta name="description" content="Aus Fotos schöne Verkaufsbilder machen: Stile, Collagen, Aufkleber, als PNG speichern.">
+  <meta name="description" content="Aus Fotos schöne Verkaufsbilder machen: Stile, Collagen, Aufkleber, Serien, als PNG speichern.">
   <meta name="theme-color" content="#131211">
   <meta name="robots" content="noindex">
   <link rel="manifest" href="manifest.webmanifest">
@@ -24,22 +24,40 @@
 
   <main class="grid">
     <section class="stage" aria-label="Vorschau">
+      <div class="undo">
+        <button class="btn small" id="undo" type="button" aria-label="Rückgängig" disabled>↶ Rückgängig</button>
+        <button class="btn small" id="redo" type="button" aria-label="Wiederholen" disabled>Wiederholen ↷</button>
+      </div>
       <canvas id="cv" width="1080" height="1350" role="img" aria-label="Vorschau des Verkaufsbilds"></canvas>
       <p class="hint" id="dragHint">Foto oder Aufkleber im Bild ziehen</p>
       <div class="actions">
         <button class="btn primary" id="save" type="button" disabled>Als PNG speichern</button>
         <button class="btn" id="share" type="button" hidden>Teilen</button>
       </div>
+      <div class="actions">
+        <button class="btn" id="zip" type="button" disabled>Alle als ZIP speichern</button>
+      </div>
+      <label class="check"><input type="checkbox" id="singles"> Einzelfotos im ZIP mitspeichern</label>
       <p class="hint" id="hint"></p>
     </section>
 
     <section class="panel" aria-label="Einstellungen">
-      <label class="art" for="article">Was verkaufst du? <select id="article"></select></label>
+      <div class="sec">
+        <h2>Artikel in dieser Serie</h2>
+        <div class="seg" id="series"></div>
+        <div class="row">
+          <button class="btn small" id="itAdd" type="button">+ Neuer Artikel</button>
+          <button class="btn small" id="itDup" type="button">Duplizieren</button>
+          <button class="btn small danger" id="itDel" type="button">Entfernen</button>
+        </div>
+      </div>
+
       <div class="tabs" role="tablist" id="tabs">
         <button role="tab" type="button" data-tab="foto" aria-selected="true">Foto</button>
         <button role="tab" type="button" data-tab="stil" aria-selected="false">Stil</button>
         <button role="tab" type="button" data-tab="text" aria-selected="false">Text</button>
         <button role="tab" type="button" data-tab="aufkleber" aria-selected="false">Aufkleber</button>
+        <button role="tab" type="button" data-tab="anzeige" aria-selected="false">Anzeige</button>
       </div>
 
       <div class="tabpane" data-pane="foto">
@@ -52,6 +70,12 @@
             <span id="fname">Du kannst mehrere auf einmal wählen</span>
             <input type="file" id="file" accept="image/*" multiple>
           </label>
+          <div class="row"><button class="btn small" id="autoCover" type="button">Titelbild automatisch aus allen Fotos</button></div>
+          <div id="extrasBox" hidden class="sec">
+            <p class="hint left" id="extrasInfo"></p>
+            <div class="chips" id="extras"></div>
+            <div class="row"><button class="btn small danger" id="extrasClear" type="button">Weitere Fotos entfernen</button></div>
+          </div>
           <div class="sliders"><label for="zoom">Zoom <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label></div>
           <div class="row"><button class="btn small" id="rmPhoto" type="button">Foto entfernen</button><button class="btn small" id="resetPos" type="button">Ausschnitt zurücksetzen</button></div>
         </div>
@@ -69,6 +93,11 @@
       <div class="tabpane" data-pane="stil" hidden>
         <div class="sec"><h2>Format</h2><div class="seg" id="formats"></div></div>
         <div class="sec"><h2>Stil</h2><div class="seg" id="styles"></div></div>
+        <div class="sec">
+          <h2>Hintergrund</h2>
+          <div class="seg" id="bgs"></div>
+          <p class="hint left">Zu sehen bei Karte, Bogen, Polaroid, Magazin und bei überlappenden Collagen. Die Grundfarbe ist die „Verlauf / Hintergrund“-Farbe unten.</p>
+        </div>
         <div class="sec"><h2>Schrift</h2><div class="seg" id="fonts"></div></div>
         <div class="sec">
           <h2>Farben</h2>
@@ -84,21 +113,26 @@
 
       <div class="tabpane" data-pane="text" hidden>
         <div class="sec">
+          <h2>Was verkaufst du?</h2>
+          <select id="article" aria-label="Artikelart"></select>
+        </div>
+        <div class="sec">
           <h2>Text</h2>
           <div class="fields">
             <label class="full" for="title">Titel <input type="text" id="title" maxlength="50"></label>
             <label for="size"><span id="sizeLabel">Größe</span> <input type="text" id="size" maxlength="24"></label>
             <label for="price">Preis in € <input type="text" id="price" maxlength="7" inputmode="decimal"></label>
             <div class="full chips" id="sizeChips" aria-label="Größe wählen"></div>
+            <label class="full" for="old">Alter Preis in € (wird durchgestrichen, optional) <input type="text" id="old" maxlength="7" inputmode="decimal"></label>
             <label class="full" for="extra"><span id="extraLabel">Marke oder Zustand</span> <input type="text" id="extra" maxlength="24"></label>
             <div class="full chips" id="condChips" aria-label="Zustand wählen"></div>
-            <label class="full" for="shop">Shop-Name im Foto (optional) <input type="text" id="shop" maxlength="20"></label>
+            <label class="full" for="shop">Shop-Name im Foto (optional, gilt für die ganze Serie) <input type="text" id="shop" maxlength="20"></label>
           </div>
         </div>
       </div>
 
       <div class="tabpane" data-pane="aufkleber" hidden>
-        <div class="sec"><h2>Aufkleber hinzufügen</h2><p class="hint left">Die umrandeten passen zu deiner Artikelart.</p><div class="chips" id="stlib"></div><div class="chips" id="stemoji"></div></div>
+        <div class="sec"><h2>Aufkleber hinzufügen</h2><p class="hint left">Die umrandeten passen zu deiner Artikelart. „Rabatt“ rechnet den Prozentsatz aus altem und neuem Preis aus.</p><div class="chips" id="stlib"></div><div class="chips" id="stemoji"></div></div>
         <div class="sec">
           <h2>Gesetzte Aufkleber</h2>
           <div class="seg" id="stlist"></div>
@@ -115,12 +149,31 @@
           </div>
         </div>
       </div>
+
+      <div class="tabpane" data-pane="anzeige" hidden>
+        <div class="sec">
+          <h2>Anzeigentext</h2>
+          <div class="seg" id="adplat"></div>
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="adVersand"> Versand möglich</label>
+            <label class="check"><input type="checkbox" id="adAbholung"> Abholung möglich</label>
+            <label class="check"><input type="checkbox" id="adNicht"> Nichtraucherhaushalt</label>
+            <label class="check"><input type="checkbox" id="adTier"> Tierfreier Haushalt</label>
+            <label class="check"><input type="checkbox" id="adVB"> Preis verhandelbar (VB)</label>
+            <label class="check"><input type="checkbox" id="adPrivat"> Privatverkauf, keine Rücknahme</label>
+          </div>
+          <textarea id="adtext" rows="11" aria-label="Anzeigentext"></textarea>
+          <div class="row"><button class="btn small primary" id="adcopy" type="button">Text kopieren</button><button class="btn small" id="adgen" type="button">Neu erstellen</button></div>
+          <p class="hint left">Der Text entsteht aus deinen Angaben (Titel, Größe, Preis, Zustand). Du kannst ihn danach frei ändern. Im ZIP liegen die Texte aller Artikel in einer Datei.</p>
+        </div>
+      </div>
     </section>
   </main>
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="core.js"></script>
 <script src="render.js"></script>
+<script src="zip.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

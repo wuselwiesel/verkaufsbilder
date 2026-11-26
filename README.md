@@ -4,21 +4,26 @@ Web-App, die aus Fotos Verkaufsbilder im Tise-Stil macht und als PNG speichert. 
 
 ## Funktionen
 
-- **Stile:** Tise (Foto mit Verlauf), Karte, Bogen, Polaroid, Magazin
-- **Collagen:** ein bis vier Fotos. Jedes Foto hat eigenen Zoom, Ausschnitt und eigene Korrektur.
-- **Formate:** 4:5, 1:1 und Story (9:16)
-- **Artikelart:** Kleidung, Schuhe, Taschen, Kinder, Bücher, Technik, Möbel, Spielzeug, Sonstiges. Felder, Schnellwahl und passende Aufkleber ändern sich mit der Art.
-- **Aufkleber:** Preis, NEU, SALE, Neuwertig, Reserviert, Verkauft, Versand inklusive und mehr, dazu Emojis. Frei verschieben, drehen, vergrößern.
-- **Foto verbessern:** Helligkeit, Kontrast, Farbe, „Automatisch verbessern“
-- **Farben und Schrift:** Paletten, eigene Farben, „Passend zum Foto“, sechs Schriften
+- **Serie:** Mehrere Artikel in einem Durchgang. Neue Artikel übernehmen Look, Collage und Aufkleber, Texte und Fotos sind frei. „Alle als ZIP speichern“ packt die Titelbilder aller Artikel und eine Datei mit den Anzeigentexten zusammen. Auf Wunsch kommen alle Einzelfotos als eigene Bilder dazu.
+- **Titelbild aus mehreren Fotos:** „Titelbild automatisch“ verteilt alle Fotos eines Artikels auf die passende Collage. Weitere Fotos bleiben als Einzelbilder erhalten.
+- **Anzeigentext:** Aus Titel, Größe, Preis und Zustand entsteht ein Text für Vinted, Tise oder Kleinanzeigen (mit Hashtags bei Tise). Optionen wie Versand, Abholung oder Nichtraucherhaushalt, frei bearbeitbar, mit „Kopieren“.
+- **Collagen:** ein bis vier Fotos (nebeneinander, untereinander, drei, vier), zwei oder drei überlappende Karten, Vorher und Nachher
+- **Preis:** Alter Preis wird durchgestrichen. Der Aufkleber „Rabatt“ rechnet den Prozentsatz selbst aus.
+- **Hintergründe:** Verlauf, Papier, Holz, Leinen, Punkte, Streifen, Karo
+- **Rückgängig und Wiederholen** (auch mit Strg+Z und Strg+Y)
+- **Stile:** Tise, Karte, Bogen, Polaroid, Magazin. **Formate:** 4:5, 1:1, Story (9:16)
+- **Artikelart:** Kleidung, Schuhe, Taschen, Kinder, Bücher, Technik, Möbel, Spielzeug, Sonstiges. Felder, Schnellwahl (Größen, Zustand) und passende Aufkleber ändern sich mit der Art.
+- **Aufkleber:** Preis, Rabatt, NEU, SALE, Neuwertig, Reserviert, Verkauft, Versand inklusive und mehr, dazu Emojis. Frei verschieben, drehen, vergrößern.
+- **Foto verbessern:** Helligkeit, Kontrast, Farbe, „Automatisch verbessern“. **Farben und Schrift:** Paletten, eigene Farben, „Passend zum Foto“, sechs Schriften.
 - Läuft als installierbare App (PWA) und nach dem ersten Laden offline. Auf dem Handy gibt es „Teilen“.
-- Fotos bleiben im Browser. Gemerkt werden nur Stil, Farben, Texte und Aufkleber.
+- Fotos bleiben im Browser. Gemerkt werden Stil, Farben, Texte, Aufkleber und die Artikelliste der Serie, aber nicht die Fotos selbst.
 
 ## Dateien
 
-- `core.js` Zustand und Konstanten
+- `core.js` Zustand, Konstanten, Anzeigentext
 - `render.js` Zeichnen auf dem Canvas
 - `ui.js` Bedienung
+- `zip.js` einfacher ZIP-Schreiber
 - `sw.js`, `manifest.webmanifest` App-Installation und Offline-Betrieb
 
 ## Lokal starten

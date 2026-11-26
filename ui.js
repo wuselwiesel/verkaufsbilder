@@ -1,15 +1,16 @@
-/* Bedienung: Reiter, Fotos, Stile, Aufkleber, Speichern */
+/* Bedienung: Serie, Fotos, Stile, Aufkleber, Anzeigentext, Rückgängig, Speichern */
 (function (VB) {
   "use strict";
   var s = VB.s, R = VB.render, W = VB.W;
-  var cv = document.getElementById("cv"), g = cv.getContext("2d");
-  var KEY = "verkaufsbilder-v2", toastT, sid = 0;
+  var KEY = "verkaufsbilder-v3", toastT, adEdited = false;
 
   function $(id) { return document.getElementById(id); }
+  var cv = $("cv"), g = cv.getContext("2d");
+  function it() { return VB.item(); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function toast(t) {
     var el = $("toast"); el.textContent = t; el.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2800);
+    clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 3200);
   }
   function mkBtn(parent, label, pressed, onclick, cls) {
     var b = document.createElement("button"); b.type = "button"; b.textContent = label;
@@ -17,6 +18,10 @@
     if (pressed != null) b.setAttribute("aria-pressed", String(pressed));
     b.onclick = onclick; parent.appendChild(b); return b;
   }
+  function slug(t) {
+    return t.trim().toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "verkaufsbild";
+  }
+  var HEX = /^#[0-9a-f]{6}$/i;
 
   /* Zeichnen */
   var pending = false;
@@ -26,42 +31,88 @@
   }
   function setSize() {
     var H = VB.H(); cv.width = W; cv.height = H;
-    cv.style.width = "min(100%, " + (74 * W / H).toFixed(2) + "vh)"; cv.style.aspectRatio = W + " / " + H;
+    cv.style.width = "min(100%, " + (70 * W / H).toFixed(2) + "vh)"; cv.style.aspectRatio = W + " / " + H;
   }
 
-  /* Merken */
-  function persist() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({
-        format: s.format, style: s.style, collage: s.collage, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius,
-        texts: s.texts, article: s.article, byType: s.byType,
-        stickers: s.stickers.map(function (k) { return { kind: k.kind, text: k.text, auto: k.auto, color: k.color, x: k.x, y: k.y, size: k.size, rot: k.rot }; })
-      }));
-    } catch (e) {}
+  /* Zustand sichern: Speicher im Browser (ohne Fotos) und Verlauf für Rückgängig (mit Fotos) */
+  function pser(p) { return p ? { id: p.id, zoom: p.zoom, px: p.px, py: p.py, adj: { b: p.adj.b, c: p.adj.c, s: p.adj.s } } : null; }
+  function iser(x, withPhotos) {
+    return {
+      article: x.article, byType: x.byType, texts: x.texts, collage: x.collage,
+      stickers: x.stickers.map(function (k) { return { kind: k.kind, text: k.text, auto: k.auto, color: k.color, x: k.x, y: k.y, size: k.size, rot: k.rot }; }),
+      photos: withPhotos ? x.photos.map(pser) : [null, null, null, null], extras: withPhotos ? x.extras.map(pser) : []
+    };
   }
-  function restore() {
-    try {
-      var o = JSON.parse(localStorage.getItem(KEY) || "null"); if (!o) return;
-      var has = function (list, v) { return list.some(function (x) { return x[0] === v; }); };
-      if (has(VB.FORMATS, o.format)) s.format = o.format;
-      if (has(VB.STYLES, o.style)) s.style = o.style;
-      if (VB.COLL_N[o.collage]) s.collage = o.collage;
-      if (typeof o.font === "number" && VB.FONTS[o.font]) s.font = o.font;
-      if (typeof o.col === "number" && o.col >= -1 && o.col < VB.COLS.length) s.col = o.col;
-      if (/^#[0-9a-f]{6}$/i.test(o.t)) s.t = o.t;
-      if (/^#[0-9a-f]{6}$/i.test(o.g)) s.g = o.g;
-      if (typeof o.radius === "number") s.radius = clamp(o.radius, 0, 90);
-      if (VB.ARTICLES.some(function (a) { return a.id === o.article; })) s.article = o.article;
-      if (o.byType && typeof o.byType === "object") Object.keys(o.byType).forEach(function (k) { var v = o.byType[k]; if (v && typeof v.size === "string" && typeof v.extra === "string") s.byType[k] = { size: v.size, extra: v.extra }; });
-      if (o.texts) Object.keys(s.texts).forEach(function (k) { if (typeof o.texts[k] === "string") s.texts[k] = o.texts[k]; });
-      if (Array.isArray(o.stickers)) {
-        s.stickers = o.stickers.slice(0, 20).filter(function (k) { return k && typeof k.kind === "string"; }).map(function (k) {
-          return { id: ++sid, kind: k.kind, text: String(k.text || ""), auto: k.auto === "price" ? "price" : undefined, color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : "#ffffff",
-            x: clamp(+k.x || 0.5, 0, 1), y: clamp(+k.y || 0.2, 0, 1), size: clamp(+k.size || 1, 0.4, 2.2), rot: clamp(+k.rot || 0, -45, 45) };
-        });
-      }
-    } catch (e) {}
+  function snapshot(withPhotos) {
+    return JSON.stringify({
+      look: { format: s.format, style: s.style, font: s.font, col: s.col, t: s.t, g: s.g, radius: s.radius, bg: s.bg, shop: s.shop },
+      ad: s.ad, singles: s.singles, items: s.items.map(function (x) { return iser(x, withPhotos); })
+    });
   }
+  function pdes(po) {
+    if (!po || typeof po.id !== "number") return null;
+    var p = R.reg[po.id]; if (!p) return null;
+    p.zoom = clamp(+po.zoom || 1, 1, 3); p.px = clamp(+po.px || 0, -1, 1); p.py = clamp(+po.py || 0, -1, 1);
+    var a = po.adj || {}, na = { b: clamp(+a.b || 0, -50, 50), c: clamp(+a.c || 0, -50, 50), s: clamp(+a.s || 0, -100, 100) };
+    if (na.b !== p.adj.b || na.c !== p.adj.c || na.s !== p.adj.s) { p.adj = na; R.buildWork(p); }
+    return p;
+  }
+  function normItem(o) {
+    var x = VB.newItem(null); if (!o || typeof o !== "object") return x;
+    if (VB.ARTICLES.some(function (a) { return a.id === o.article; })) x.article = o.article;
+    if (o.byType && typeof o.byType === "object") Object.keys(o.byType).forEach(function (k) {
+      var v = o.byType[k]; if (v && typeof v.size === "string" && typeof v.extra === "string") x.byType[k] = { size: v.size.slice(0, 24), extra: v.extra.slice(0, 24) };
+    });
+    if (o.texts) Object.keys(x.texts).forEach(function (k) { if (typeof o.texts[k] === "string") x.texts[k] = o.texts[k].slice(0, 60); });
+    if (VB.COLL_N[o.collage]) x.collage = o.collage;
+    x.photos = [0, 1, 2, 3].map(function (i) { return pdes((o.photos || [])[i]); });
+    x.extras = (o.extras || []).map(pdes).filter(Boolean);
+    if (Array.isArray(o.stickers)) x.stickers = o.stickers.slice(0, 20).filter(function (k) { return k && typeof k.kind === "string"; }).map(function (k) {
+      var kind = ["kreis", "stern", "pille", "etikett", "emoji"].indexOf(k.kind) >= 0 ? k.kind : "kreis";
+      return { id: VB.nextId(), kind: kind, text: String(k.text || "").slice(0, 24), auto: k.auto === "price" || k.auto === "discount" ? k.auto : undefined,
+        color: HEX.test(k.color) ? k.color : "#ffffff", x: clamp(+k.x || 0.5, 0, 1), y: clamp(+k.y || 0.2, 0, 1), size: clamp(+k.size || 1, 0.4, 2.2), rot: clamp(+k.rot || 0, -45, 45) };
+    });
+    return x;
+  }
+  function applyState(o) {
+    var L = o.look || {}, has = function (list, v) { return list.some(function (x) { return x[0] === v; }); };
+    if (has(VB.FORMATS, L.format)) s.format = L.format;
+    if (has(VB.STYLES, L.style)) s.style = L.style;
+    if (has(VB.BGS, L.bg)) s.bg = L.bg;
+    if (typeof L.font === "number" && VB.FONTS[L.font]) s.font = L.font;
+    if (typeof L.col === "number" && L.col >= -1 && L.col < VB.COLS.length) s.col = L.col;
+    if (HEX.test(L.t)) s.t = L.t;
+    if (HEX.test(L.g)) s.g = L.g;
+    if (typeof L.radius === "number") s.radius = clamp(L.radius, 0, 90);
+    if (typeof L.shop === "string") s.shop = L.shop.slice(0, 20);
+    if (o.ad && typeof o.ad === "object") {
+      ["versand", "abholung", "nichtraucher", "tierfrei", "vb", "privat"].forEach(function (k) { if (typeof o.ad[k] === "boolean") s.ad[k] = o.ad[k]; });
+      if (["vinted", "tise", "kleinanzeigen"].indexOf(o.ad.platform) >= 0) s.ad.platform = o.ad.platform;
+    }
+    s.singles = !!o.singles;
+    if (Array.isArray(o.items) && o.items.length) s.items = o.items.slice(0, 30).map(normItem);
+    s.cur = Math.min(s.cur, s.items.length - 1);
+  }
+  function save() { try { localStorage.setItem(KEY, snapshot(false)); } catch (e) {} }
+  function restore() { try { var o = JSON.parse(localStorage.getItem(KEY) || "null"); if (o) applyState(o); } catch (e) {} }
+
+  var hist = [], hi = -1, histT = null;
+  function histPush() {
+    histT = null;
+    var sn = snapshot(true); if (sn === hist[hi]) { syncUndo(); return; }
+    hist = hist.slice(0, hi + 1); hist.push(sn); if (hist.length > 80) hist.shift(); hi = hist.length - 1; syncUndo();
+  }
+  function changed() { save(); clearTimeout(histT); histT = setTimeout(histPush, 450); syncUndo(); }
+  function flush() { if (histT) { clearTimeout(histT); histPush(); } }
+  function syncUndo() { $("undo").disabled = !(hi > 0 || histT); $("redo").disabled = !(hi < hist.length - 1); }
+  function undo() { flush(); if (hi > 0) { hi--; applyState(JSON.parse(hist[hi])); adEdited = false; refreshAll(); save(); syncUndo(); } }
+  function redo() { flush(); if (hi < hist.length - 1) { hi++; applyState(JSON.parse(hist[hi])); adEdited = false; refreshAll(); save(); syncUndo(); } }
+  $("undo").onclick = undo; $("redo").onclick = redo;
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    var k = e.key.toLowerCase();
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+  });
 
   /* Reiter */
   var tabs = document.querySelectorAll("#tabs button");
@@ -71,24 +122,47 @@
       document.querySelectorAll(".tabpane").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== b.getAttribute("data-tab"); });
     };
   });
-  function openTab(name) { document.querySelector('#tabs [data-tab="' + name + '"]').click(); }
 
-  /* Format, Stil, Schrift, Farben */
-  function buildFormats() {
-    var box = $("formats"); box.textContent = "";
-    VB.FORMATS.forEach(function (f) { mkBtn(box, f[1], s.format === f[0], function () { s.format = f[0]; setSize(); buildFormats(); render(); persist(); }); });
+  /* Serie */
+  function buildSeries() {
+    var box = $("series"); box.textContent = "";
+    s.items.forEach(function (x, i) {
+      var t = x.texts.title.trim() || "neu";
+      mkBtn(box, (i + 1) + ". " + (t.length > 14 ? t.slice(0, 13) + "…" : t), i === s.cur, function () { s.cur = i; adEdited = false; refreshAll(); });
+    });
+    $("itDel").disabled = s.items.length < 2;
   }
-  function buildStyles() {
-    var box = $("styles"); box.textContent = "";
-    VB.STYLES.forEach(function (f) { mkBtn(box, f[1], s.style === f[0], function () { s.style = f[0]; buildStyles(); render(); persist(); }); });
+  $("itAdd").onclick = function () {
+    if (s.items.length >= 30) { toast("Mehr als 30 Artikel gehen nicht."); return; }
+    s.items.push(VB.newItem(it())); s.cur = s.items.length - 1; adEdited = false; refreshAll(); changed();
+    toast("Neuer Artikel mit demselben Look. Lade jetzt die Fotos hoch.");
+  };
+  $("itDup").onclick = function () {
+    if (s.items.length >= 30) { toast("Mehr als 30 Artikel gehen nicht."); return; }
+    var c = VB.newItem(it()); Object.keys(c.texts).forEach(function (k) { c.texts[k] = it().texts[k]; });
+    c.byType = JSON.parse(JSON.stringify(it().byType));
+    s.items.push(c); s.cur = s.items.length - 1; adEdited = false; refreshAll(); changed();
+  };
+  $("itDel").onclick = function () {
+    if (s.items.length < 2) return;
+    s.items.splice(s.cur, 1); s.cur = Math.min(s.cur, s.items.length - 1); adEdited = false; refreshAll(); changed();
+  };
+
+  /* Format, Stil, Hintergrund, Schrift, Farben */
+  function simpleSeg(id, list, key) {
+    var box = $(id); box.textContent = "";
+    list.forEach(function (f) { mkBtn(box, f[1], s[key] === f[0], function () { s[key] = f[0]; if (key === "format") setSize(); simpleSeg(id, list, key); render(); changed(); }); });
   }
+  function buildFormats() { simpleSeg("formats", VB.FORMATS, "format"); }
+  function buildStyles() { simpleSeg("styles", VB.STYLES, "style"); }
+  function buildBgs() { simpleSeg("bgs", VB.BGS, "bg"); }
   function buildFonts() {
     var box = $("fonts"); box.textContent = "";
     VB.FONTS.forEach(function (f, i) {
       var b = mkBtn(box, f.n, s.font === i, function () {
         s.font = i; buildFonts();
         if (document.fonts && document.fonts.load) document.fonts.load(VB.fontStr(60)).then(render).catch(render);
-        render(); persist();
+        render(); changed();
       });
       b.style.cssText = f.st;
     });
@@ -103,68 +177,84 @@
       el.onclick = function () {
         s.col = i;
         if (!c.none) { s.t = c.t; s.g = c.g; $("ct").value = c.t; $("cg").value = c.g; }
-        buildCols(); render(); persist();
+        buildCols(); render(); changed();
       };
       box.appendChild(el);
     });
   }
-  $("ct").addEventListener("input", function () { s.t = this.value; s.col = -1; buildCols(); render(); persist(); });
-  $("cg").addEventListener("input", function () { s.g = this.value; s.col = -1; buildCols(); render(); persist(); });
-  $("radius").addEventListener("input", function () { s.radius = +this.value; render(); persist(); });
+  $("ct").addEventListener("input", function () { s.t = this.value; s.col = -1; buildCols(); render(); changed(); });
+  $("cg").addEventListener("input", function () { s.g = this.value; s.col = -1; buildCols(); render(); changed(); });
+  $("radius").addEventListener("input", function () { s.radius = +this.value; render(); changed(); });
 
   $("fromPhoto").onclick = function () {
-    var p = R.photoFor(s.sel) || R.photoFor(0); if (!p) return;
+    var x = it(), p = R.photoFor(x, x.sel) || R.photoFor(x, 0); if (!p) return;
     var w = p.work, c = document.createElement("canvas"); c.width = c.height = 16;
-    var x = c.getContext("2d", { willReadFrequently: true });
-    x.drawImage(w, 0, w.height * 0.66, w.width, w.height * 0.34, 0, 0, 16, 16);
-    var d = x.getImageData(0, 0, 16, 16).data, r = 0, gg = 0, b = 0, n = d.length / 4;
+    var cx = c.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(w, 0, w.height * 0.66, w.width, w.height * 0.34, 0, 0, 16, 16);
+    var d = cx.getImageData(0, 0, 16, 16).data, r = 0, gg = 0, b = 0, n = d.length / 4;
     for (var i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; }
     var avg = VB.rgbHex([r / n, gg / n, b / n]);
     if (s.style === "tise") {
       if (VB.lum(avg) > 0.62) { s.g = VB.mix(avg, "#ffffff", 0.8); s.t = VB.mix(avg, "#000000", 0.7); }
       else { s.g = VB.mix(avg, "#000000", 0.6); s.t = "#f6efe4"; }
     } else { s.g = VB.mix(avg, "#ffffff", 0.78); s.t = VB.mix(avg, "#000000", 0.72); }
-    s.col = -1; $("ct").value = s.t; $("cg").value = s.g; buildCols(); render(); persist();
+    s.col = -1; $("ct").value = s.t; $("cg").value = s.g; buildCols(); render(); changed();
   };
 
   /* Collage und Fotos */
   function svgIcon(coll) {
-    var rs = R.cellRects(coll, { x: 2, y: 2, w: 20, h: 26 }, 2);
+    var rs = R.cellRects(coll, { x: 3, y: 3, w: 18, h: 24 }, 2);
     return '<svg viewBox="0 0 24 30" aria-hidden="true">' + rs.map(function (r) {
-      return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="2" fill="currentColor"/>';
+      var t = r.rot ? ' transform="rotate(' + r.rot + " " + (r.x + r.w / 2) + " " + (r.y + r.h / 2) + ')"' : "";
+      return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="2" fill="currentColor"' + (r.frame ? ' stroke="var(--panel)" stroke-width="1.2"' : "") + t + "/>";
     }).join("") + "</svg>";
   }
   function buildCollage() {
     var box = $("collage"); box.textContent = "";
     VB.COLLAGES.forEach(function (c) {
-      var b = mkBtn(box, "", s.collage === c[0], function () {
-        s.collage = c[0]; s.sel = Math.min(s.sel, VB.nCells() - 1); s.selSticker = null;
-        buildCollage(); buildCells(); syncPhoto(); updateStatus(); render(); persist();
+      var b = mkBtn(box, "", it().collage === c[0], function () {
+        var x = it(); x.collage = c[0]; x.sel = Math.min(x.sel, VB.nCells(x) - 1); x.selSticker = null;
+        buildCollage(); buildCells(); syncPhoto(); updateStatus(); render(); changed();
       });
       b.innerHTML = svgIcon(c[0]); b.title = c[1]; b.setAttribute("aria-label", c[1]);
     });
   }
   function buildCells() {
-    var box = $("cells"); box.textContent = "";
-    for (var i = 0; i < VB.nCells(); i++) (function (i) {
-      var b = mkBtn(box, "Foto " + (i + 1), s.sel === i && s.selSticker == null, function () {
-        s.sel = i; s.selSticker = null; buildCells(); syncPhoto(); syncSticker(); render();
+    var box = $("cells"), x = it(); box.textContent = "";
+    for (var i = 0; i < VB.nCells(x); i++) (function (i) {
+      var b = mkBtn(box, "Foto " + (i + 1), x.sel === i && x.selSticker == null, function () {
+        x.sel = i; x.selSticker = null; buildCells(); syncPhoto(); syncSticker(); render();
       });
-      if (s.photos[i]) b.className = "filled";
+      if (x.photos[i]) b.className = "filled";
     })(i);
   }
+  function buildExtras() {
+    var x = it(), box = $("extras"); box.textContent = "";
+    $("extrasBox").hidden = x.extras.length === 0;
+    $("extrasInfo").textContent = x.extras.length + (x.extras.length === 1 ? " weiteres Foto" : " weitere Fotos") + " (nicht im Titelbild). Antippen tauscht es ins ausgewählte Feld. Mit „Einzelfotos mitspeichern“ wird jedes als eigenes Bild gespeichert.";
+    x.extras.forEach(function (p, i) {
+      mkBtn(box, "Weiteres " + (i + 1), null, function () {
+        var q = x.extras.splice(i, 1)[0], old = x.photos[x.sel];
+        x.photos[x.sel] = q; if (old) x.extras.splice(i, 0, old);
+        buildCells(); buildExtras(); syncPhoto(); updateStatus(); render(); changed();
+      });
+    });
+  }
   function syncPhoto() {
-    var p = R.photoFor(s.sel), off = !p;
+    var x = it(), p = R.photoFor(x, x.sel), off = !p;
     $("zoom").value = p ? p.zoom : 1;
     $("adjB").value = p ? p.adj.b : 0; $("adjC").value = p ? p.adj.c : 0; $("adjS").value = p ? p.adj.s : 0;
     ["zoom", "adjB", "adjC", "adjS", "auto", "adjReset", "resetPos"].forEach(function (id) { $(id).disabled = off; });
-    $("rmPhoto").disabled = !s.photos[s.sel];
+    $("rmPhoto").disabled = !x.photos[x.sel];
+    $("autoCover").disabled = x.photos.filter(Boolean).length + x.extras.length < 2;
   }
   function updateStatus() {
-    var ok = VB.ready(), m = VB.missing(), h = $("hint");
-    $("save").disabled = !ok; $("share").disabled = !ok;
-    h.textContent = !VB.anyPhoto() ? "Das ist ein Beispielfoto. Lade dein eigenes Foto hoch, dann kannst du speichern."
-      : m > 0 ? "Noch " + m + (m === 1 ? " Foto fehlt." : " Fotos fehlen.") : "Fertig? Dann speichern.";
+    var x = it(), ok = VB.ready(x), m = VB.missing(x), bad = -1, all = true, h = $("hint");
+    s.items.forEach(function (y, i) { if (!VB.ready(y)) { all = false; if (bad < 0) bad = i + 1; } });
+    $("save").disabled = !ok; $("share").disabled = !ok; $("zip").disabled = !all;
+    h.textContent = !VB.anyPhoto(x) ? "Das ist ein Beispielfoto. Lade dein eigenes Foto hoch, dann kannst du speichern."
+      : m > 0 ? "Noch " + m + (m === 1 ? " Foto fehlt." : " Fotos fehlen.")
+      : !all ? "Dieser Artikel ist fertig. Für das ZIP fehlen noch Fotos bei Artikel " + bad + "." : "Fertig? Dann speichern.";
   }
   function loadImg(file) {
     return new Promise(function (res) {
@@ -176,20 +266,22 @@
   function loadFiles(list) {
     var files = [].filter.call(list || [], function (f) { return f.type.indexOf("image/") === 0; });
     if (!files.length) { toast("Das ist keine Bilddatei."); return; }
-    if (files.length > 1 && s.collage === "1") s.collage = files.length === 2 ? "2h" : files.length === 3 ? "3" : "4";
-    files = files.slice(0, VB.nCells());
+    var x = it();
+    if (files.length > 1 && x.collage === "1") x.collage = files.length === 2 ? "2h" : files.length === 3 ? "3" : "4";
+    files = files.slice(0, 24);
     Promise.all(files.map(loadImg)).then(function (imgs) {
-      var n = VB.nCells(), pos = s.sel, first = -1;
+      var n = VB.nCells(x), pos = x.sel, first = -1, single = imgs.length === 1;
       imgs.forEach(function (im) {
         if (!im) return;
         var t = -1;
-        for (var k = 0; k < n; k++) { var idx = (pos + k) % n; if (!s.photos[idx]) { t = idx; break; } }
-        if (t < 0) t = pos;
-        s.photos[t] = R.newPhoto(im); if (first < 0) first = t; pos = (t + 1) % n;
+        for (var k = 0; k < n; k++) { var idx = (pos + k) % n; if (!x.photos[idx]) { t = idx; break; } }
+        if (t >= 0) { x.photos[t] = R.newPhoto(im); if (first < 0) first = t; pos = (t + 1) % n; }
+        else if (single) x.photos[x.sel] = R.newPhoto(im);
+        else if (x.extras.length < 20) x.extras.push(R.newPhoto(im));
       });
-      if (first >= 0) s.sel = first;
+      if (first >= 0) x.sel = first;
       $("fname").textContent = files.length + (files.length === 1 ? " Foto geladen" : " Fotos geladen");
-      buildCollage(); buildCells(); syncPhoto(); updateStatus(); render(); persist();
+      buildCollage(); buildCells(); buildExtras(); syncPhoto(); updateStatus(); render(); changed();
     });
   }
   $("file").addEventListener("change", function () { loadFiles(this.files); this.value = ""; });
@@ -198,72 +290,85 @@
   ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove("over"); }); });
   drop.addEventListener("drop", function (ev) { loadFiles(ev.dataTransfer.files); });
 
-  $("zoom").addEventListener("input", function () { var p = R.photoFor(s.sel); if (p) { p.zoom = +this.value; render(); } });
-  $("rmPhoto").onclick = function () { s.photos[s.sel] = null; buildCells(); syncPhoto(); updateStatus(); render(); };
-  $("resetPos").onclick = function () { var p = R.photoFor(s.sel); if (p) { p.zoom = 1; p.px = p.py = 0; syncPhoto(); render(); } };
+  /* Titelbild automatisch: alle Fotos verteilen sich auf die passende Collage, der Rest bleibt Einzelfoto */
+  $("autoCover").onclick = function () {
+    var x = it(), all = x.photos.filter(Boolean).concat(x.extras);
+    if (all.length < 2) { toast("Lade zuerst mehrere Fotos."); return; }
+    x.collage = all.length === 2 ? "2h" : all.length === 3 ? "3" : "4";
+    var n = VB.nCells(x);
+    x.photos = [0, 1, 2, 3].map(function (i) { return i < n ? all[i] : null; });
+    x.extras = all.slice(n); x.sel = 0; x.selSticker = null;
+    buildCollage(); buildCells(); buildExtras(); syncPhoto(); syncSticker(); updateStatus(); render(); changed();
+    toast("Titelbild aus " + n + " Fotos erstellt.");
+  };
+  $("extrasClear").onclick = function () { it().extras = []; buildExtras(); syncPhoto(); render(); changed(); };
+
+  $("zoom").addEventListener("input", function () { var x = it(), p = R.photoFor(x, x.sel); if (p) { p.zoom = +this.value; render(); changed(); } });
+  $("rmPhoto").onclick = function () { var x = it(); x.photos[x.sel] = null; buildCells(); syncPhoto(); updateStatus(); render(); changed(); };
+  $("resetPos").onclick = function () { var x = it(), p = R.photoFor(x, x.sel); if (p) { p.zoom = 1; p.px = p.py = 0; syncPhoto(); render(); changed(); } };
 
   function rebuild(p) {
     if (p._pend) return; p._pend = true;
     requestAnimationFrame(function () { p._pend = false; R.buildWork(p); render(); });
   }
   [["adjB", "b"], ["adjC", "c"], ["adjS", "s"]].forEach(function (a) {
-    $(a[0]).addEventListener("input", function () { var p = R.photoFor(s.sel); if (p) { p.adj[a[1]] = +this.value; rebuild(p); } });
+    $(a[0]).addEventListener("input", function () { var x = it(), p = R.photoFor(x, x.sel); if (p) { p.adj[a[1]] = +this.value; rebuild(p); changed(); } });
   });
-  $("adjReset").onclick = function () { var p = R.photoFor(s.sel); if (p) { p.adj = { b: 0, c: 0, s: 0 }; R.buildWork(p); syncPhoto(); render(); } };
+  $("adjReset").onclick = function () { var x = it(), p = R.photoFor(x, x.sel); if (p) { p.adj = { b: 0, c: 0, s: 0 }; R.buildWork(p); syncPhoto(); render(); changed(); } };
   $("auto").onclick = function () {
-    var p = R.photoFor(s.sel); if (!p) return;
+    var x = it(), p = R.photoFor(x, x.sel); if (!p) return;
     var c = document.createElement("canvas"); c.width = c.height = 48;
-    var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(p.work, 0, 0, 48, 48);
-    var d = x.getImageData(0, 0, 48, 48).data, sum = 0;
+    var cx = c.getContext("2d", { willReadFrequently: true }); cx.drawImage(p.work, 0, 0, 48, 48);
+    var d = cx.getImageData(0, 0, 48, 48).data, sum = 0;
     for (var i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
     var m = sum / (d.length / 4) / 255;
     p.adj = { b: Math.round(clamp((0.5 - m) * 80, -10, 30)), c: 10, s: 8 };
-    R.buildWork(p); syncPhoto(); render();
+    R.buildWork(p); syncPhoto(); render(); changed();
   };
 
   /* Text */
-  Object.keys(s.texts).forEach(function (k) {
-    $(k).addEventListener("input", function () { s.texts[k] = this.value; render(); persist(); });
+  ["title", "size", "price", "old", "extra"].forEach(function (k) {
+    $(k).addEventListener("input", function () {
+      it().texts[k] = this.value; if (k === "title") buildSeries(); syncSticker(); genAd(); render(); changed();
+    });
   });
+  $("shop").addEventListener("input", function () { s.shop = this.value; render(); changed(); });
+
   function buildChips() {
     var a = VB.article(), box = $("sizeChips"); box.textContent = "";
-    $("sizeLabel").textContent = a.sizeLabel; $("size").placeholder = a.ph; $("title").placeholder = a.titlePh;
-    $("extraLabel").textContent = a.extraLabel;
+    $("sizeLabel").textContent = a.sizeLabel; $("size").placeholder = a.ph; $("title").placeholder = a.titlePh; $("extraLabel").textContent = a.extraLabel;
     box.hidden = a.sizes.length === 0;
-    a.sizes.forEach(function (v) {
-      mkBtn(box, v, null, function () { s.texts.size = v; $("size").value = v; render(); persist(); });
-    });
+    a.sizes.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.size = v; $("size").value = v; genAd(); render(); changed(); }); });
     box = $("condChips"); box.textContent = "";
-    a.conds.forEach(function (v) {
-      mkBtn(box, v, null, function () { s.texts.extra = v; $("extra").value = v; render(); persist(); });
-    });
+    a.conds.forEach(function (v) { mkBtn(box, v, null, function () { it().texts.extra = v; $("extra").value = v; genAd(); render(); changed(); }); });
   }
   function buildArticles() {
     var sel = $("article"); sel.textContent = "";
     VB.ARTICLES.forEach(function (a) {
-      var o = document.createElement("option"); o.value = a.id; o.textContent = a.n; o.selected = a.id === s.article; sel.appendChild(o);
+      var o = document.createElement("option"); o.value = a.id; o.textContent = a.n; o.selected = a.id === it().article; sel.appendChild(o);
     });
   }
   $("article").addEventListener("change", function () {
-    s.byType[s.article] = { size: s.texts.size, extra: s.texts.extra };
-    s.article = this.value;
-    var m = s.byType[s.article] || { size: "", extra: "" };
-    s.texts.size = m.size; s.texts.extra = m.extra; $("size").value = m.size; $("extra").value = m.extra;
-    buildChips(); buildLib(); render(); persist();
+    var x = it();
+    x.byType[x.article] = { size: x.texts.size, extra: x.texts.extra };
+    x.article = this.value;
+    var m = x.byType[x.article] || { size: "", extra: "" };
+    x.texts.size = m.size; x.texts.extra = m.extra; $("size").value = m.size; $("extra").value = m.extra;
+    buildChips(); buildLib(); genAd(); render(); changed();
   });
 
   /* Aufkleber */
-  function selected() { for (var i = 0; i < s.stickers.length; i++) if (s.stickers[i].id === s.selSticker) return s.stickers[i]; return null; }
+  function selected() { var x = it(); for (var i = 0; i < x.stickers.length; i++) if (x.stickers[i].id === x.selSticker) return x.stickers[i]; return null; }
   function addSticker(def) {
-    var n = s.stickers.length;
+    var x = it(), n = x.stickers.length;
     if (n >= 20) { toast("Mehr als 20 Aufkleber gehen nicht."); return; }
     var slots = [[0.78, 0.13], [0.22, 0.13], [0.78, 0.3], [0.22, 0.3], [0.5, 0.2], [0.78, 0.47], [0.22, 0.47]];
-    var sl = slots[n % slots.length], off = Math.floor(n / slots.length) * 0.04;
-    s.stickers.push({
-      id: ++sid, kind: def.kind, text: def.text || "", auto: def.auto, color: def.color || "#ffffff",
+    var sl = slots[n % slots.length], off = Math.floor(n / slots.length) * 0.04, id = VB.nextId();
+    x.stickers.push({
+      id: id, kind: def.kind, text: def.text || "", auto: def.auto, color: def.color || "#ffffff",
       x: clamp(sl[0] + off, 0.1, 0.9), y: clamp(sl[1] + off, 0.08, 0.9), size: 1, rot: def.kind === "emoji" ? 0 : (n % 2 ? 8 : -8)
     });
-    s.selSticker = sid; buildCells(); syncSticker(); render(); persist();
+    x.selSticker = id; buildCells(); syncSticker(); render(); changed();
   }
   function buildLib() {
     var box = $("stlib"), sug = VB.article().stk; box.textContent = "";
@@ -275,46 +380,72 @@
     VB.EMOJIS.forEach(function (e) { mkBtn(box, e, null, function () { addSticker({ kind: "emoji", text: e }); }); });
   }
   function syncSticker() {
-    var k = selected(), list = $("stlist"); list.textContent = "";
-    s.stickers.forEach(function (x, i) {
-      var label = x.kind === "emoji" ? x.text : (R.stickerText(x) || "Preis");
-      mkBtn(list, label.length > 12 ? label.slice(0, 11) + "…" : label, x.id === s.selSticker, function () { s.selSticker = x.id; buildCells(); syncSticker(); render(); });
+    var x = it(), k = selected(), list = $("stlist"); list.textContent = "";
+    x.stickers.forEach(function (y) {
+      var label = y.kind === "emoji" ? y.text : (R.stickerText(y, x) || (y.auto === "discount" ? "Rabatt" : "Preis"));
+      mkBtn(list, label.length > 12 ? label.slice(0, 11) + "…" : label, y.id === x.selSticker, function () { x.selSticker = y.id; buildCells(); syncSticker(); render(); });
     });
-    $("stempty").hidden = s.stickers.length > 0; $("sted").hidden = !k;
+    $("stempty").hidden = x.stickers.length > 0; $("sted").hidden = !k;
     if (!k) return;
     var emoji = k.kind === "emoji", t = $("sttext");
-    t.value = k.auto ? "" : k.text; t.disabled = !!k.auto || emoji; t.placeholder = k.auto ? "Kommt aus dem Preisfeld" : "";
+    t.value = k.auto ? "" : k.text; t.disabled = !!k.auto || emoji;
+    t.placeholder = k.auto === "price" ? "Kommt aus dem Preisfeld" : k.auto === "discount" ? "Wird aus altem und neuem Preis berechnet" : "";
     $("stsize").value = k.size; $("strot").value = k.rot;
     var kb = $("stkind"); kb.textContent = ""; kb.hidden = emoji;
-    VB.STK_KINDS.forEach(function (d) { mkBtn(kb, d[1], k.kind === d[0], function () { k.kind = d[0]; syncSticker(); render(); persist(); }); });
+    VB.STK_KINDS.forEach(function (d) { mkBtn(kb, d[1], k.kind === d[0], function () { k.kind = d[0]; syncSticker(); render(); changed(); }); });
     var cb = $("stcol"); cb.textContent = ""; cb.hidden = emoji;
     VB.STK_COLORS.forEach(function (c) {
       var el = document.createElement("button"); el.type = "button"; el.className = "sw"; el.style.background = c; el.setAttribute("aria-label", "Farbe " + c);
       el.setAttribute("aria-pressed", String(k.color === c));
-      el.onclick = function () { k.color = c; syncSticker(); render(); persist(); };
+      el.onclick = function () { k.color = c; syncSticker(); render(); changed(); };
       cb.appendChild(el);
     });
   }
-  $("sttext").addEventListener("input", function () { var k = selected(); if (k) { k.text = this.value; render(); persist(); } });
-  $("stsize").addEventListener("input", function () { var k = selected(); if (k) { k.size = +this.value; render(); persist(); } });
-  $("strot").addEventListener("input", function () { var k = selected(); if (k) { k.rot = +this.value; render(); persist(); } });
+  $("sttext").addEventListener("input", function () { var k = selected(); if (k) { k.text = this.value; render(); changed(); } });
+  $("stsize").addEventListener("input", function () { var k = selected(); if (k) { k.size = +this.value; render(); changed(); } });
+  $("strot").addEventListener("input", function () { var k = selected(); if (k) { k.rot = +this.value; render(); changed(); } });
   $("stdel").onclick = function () {
-    s.stickers = s.stickers.filter(function (x) { return x.id !== s.selSticker; });
-    s.selSticker = null; buildCells(); syncSticker(); render(); persist();
+    var x = it(); x.stickers = x.stickers.filter(function (y) { return y.id !== x.selSticker; });
+    x.selSticker = null; buildCells(); syncSticker(); render(); changed();
   };
   $("stdup").onclick = function () {
-    var k = selected(); if (!k || s.stickers.length >= 20) return;
-    var c = JSON.parse(JSON.stringify(k)); c.id = ++sid; c.x = clamp(k.x - 0.06, 0.05, 0.95); c.y = clamp(k.y + 0.06, 0.05, 0.95);
-    s.stickers.push(c); s.selSticker = c.id; syncSticker(); render(); persist();
+    var x = it(), k = selected(); if (!k || x.stickers.length >= 20) return;
+    var c = JSON.parse(JSON.stringify(k)); c.id = VB.nextId(); c.x = clamp(k.x - 0.06, 0.05, 0.95); c.y = clamp(k.y + 0.06, 0.05, 0.95);
+    x.stickers.push(c); x.selSticker = c.id; syncSticker(); render(); changed();
+  };
+
+  /* Anzeigentext */
+  function genAd() { if (!adEdited) $("adtext").value = VB.adText(it()); }
+  function syncAdUi() {
+    var box = $("adplat"); box.textContent = "";
+    [["vinted", "Vinted"], ["tise", "Tise"], ["kleinanzeigen", "Kleinanzeigen"]].forEach(function (p) {
+      mkBtn(box, p[1], s.ad.platform === p[0], function () { s.ad.platform = p[0]; syncAdUi(); genAd(); changed(); });
+    });
+    [["adVersand", "versand"], ["adAbholung", "abholung"], ["adNicht", "nichtraucher"], ["adTier", "tierfrei"], ["adVB", "vb"], ["adPrivat", "privat"]].forEach(function (c) { $(c[0]).checked = s.ad[c[1]]; });
+  }
+  [["adVersand", "versand"], ["adAbholung", "abholung"], ["adNicht", "nichtraucher"], ["adTier", "tierfrei"], ["adVB", "vb"], ["adPrivat", "privat"]].forEach(function (c) {
+    $(c[0]).addEventListener("change", function () { s.ad[c[1]] = this.checked; genAd(); changed(); });
+  });
+  $("adtext").addEventListener("input", function () { adEdited = true; });
+  $("adgen").onclick = function () { adEdited = false; genAd(); toast("Text neu erstellt."); };
+  $("adcopy").onclick = function () {
+    var ta = $("adtext");
+    function fallback() {
+      ta.focus(); ta.select();
+      try { if (document.execCommand("copy")) toast("Text kopiert."); else toast("Markiere den Text und kopiere ihn von Hand."); }
+      catch (e) { toast("Markiere den Text und kopiere ihn von Hand."); }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { toast("Text kopiert."); }).catch(fallback);
+    else fallback();
   };
 
   /* Ziehen im Bild: Aufkleber verschieben, Foto verschieben, mit zwei Fingern zoomen */
   var ptrs = {}, drag = null, pinch = null;
   function pt(e) { var r = cv.getBoundingClientRect(), k = W / r.width; return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; }
   function hitSticker(p) {
-    var H = VB.H();
-    for (var i = s.stickers.length - 1; i >= 0; i--) {
-      var k = s.stickers[i], a = k.rot * Math.PI / 180, dx = p.x - k.x * W, dy = p.y - k.y * H;
+    var H = VB.H(), sts = it().stickers;
+    for (var i = sts.length - 1; i >= 0; i--) {
+      var k = sts[i], a = k.rot * Math.PI / 180, dx = p.x - k.x * W, dy = p.y - k.y * H;
       var lx = (dx * Math.cos(a) + dy * Math.sin(a)) / k.size, ly = (-dx * Math.sin(a) + dy * Math.cos(a)) / k.size;
       if (Math.abs(lx) <= (k._hw || 90) + 12 && Math.abs(ly) <= (k._hh || 90) + 12) return k;
     }
@@ -322,30 +453,40 @@
   }
   function cellAt(p) {
     var c = R.hit.cells;
-    for (var i = 0; i < c.length; i++) if (p.x >= c[i].x && p.x <= c[i].x + c[i].w && p.y >= c[i].y && p.y <= c[i].y + c[i].h) return c[i];
+    for (var i = c.length - 1; i >= 0; i--) {
+      var q = p, m = c[i].frame ? R.FRAME : 0;
+      if (c[i].rot) {
+        var a = c[i].rot * Math.PI / 180, dx = p.x - c[i].cx, dy = p.y - c[i].cy;
+        q = { x: c[i].cx + dx * Math.cos(a) + dy * Math.sin(a), y: c[i].cy - dx * Math.sin(a) + dy * Math.cos(a) };
+      }
+      if (q.x >= c[i].x - m && q.x <= c[i].x + c[i].w + m && q.y >= c[i].y - m && q.y <= c[i].y + c[i].h + m) return c[i];
+    }
     return null;
   }
+  function localDelta(dx, dy, rot) {
+    if (!rot) return { x: dx, y: dy };
+    var a = rot * Math.PI / 180;
+    return { x: dx * Math.cos(a) + dy * Math.sin(a), y: -dx * Math.sin(a) + dy * Math.cos(a) };
+  }
   cv.addEventListener("pointerdown", function (e) {
-    var p = pt(e); ptrs[e.pointerId] = p; cv.setPointerCapture(e.pointerId);
+    var p = pt(e), x = it(); ptrs[e.pointerId] = p; cv.setPointerCapture(e.pointerId);
     var ids = Object.keys(ptrs);
-    if (ids.length === 2 && drag && drag.type === "photo") {
+    if (ids.length === 2 && drag && drag.type === "photo" && drag.ph) {
       var a = ptrs[ids[0]], b = ptrs[ids[1]];
       pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: drag.ph.zoom }; return;
     }
     var k = hitSticker(p);
     if (k) {
-      s.selSticker = k.id; drag = { type: "st", k: k, ox: p.x - k.x * W, oy: p.y - k.y * VB.H(), moved: false };
+      x.selSticker = k.id; drag = { type: "st", k: k, ox: p.x - k.x * W, oy: p.y - k.y * VB.H(), moved: false };
       buildCells(); syncSticker(); render(); return;
     }
     var c = cellAt(p);
     if (c) {
-      var hadSticker = s.selSticker != null; s.sel = c.i; s.selSticker = null;
-      var ph = R.photoFor(c.i);
+      var had = x.selSticker != null; x.sel = c.i; x.selSticker = null;
+      var ph = R.photoFor(x, c.i);
       drag = { type: "photo", ph: ph, cell: c, x: p.x, y: p.y, px: ph ? ph.px : 0, py: ph ? ph.py : 0, moved: false, empty: !ph };
-      buildCells(); syncPhoto(); if (hadSticker) syncSticker(); render();
-    } else {
-      s.selSticker = null; drag = null; buildCells(); syncSticker(); render();
-    }
+      buildCells(); syncPhoto(); if (had) syncSticker(); render();
+    } else { x.selSticker = null; drag = null; buildCells(); syncSticker(); render(); }
     cv.classList.add("drag");
   });
   cv.addEventListener("pointermove", function (e) {
@@ -361,9 +502,9 @@
       drag.moved = true; drag.k.x = clamp((p.x - drag.ox) / W, 0, 1); drag.k.y = clamp((p.y - drag.oy) / VB.H(), 0, 1); render();
     } else if (drag.ph) {
       if (Math.hypot(p.x - drag.x, p.y - drag.y) > 8) drag.moved = true;
-      var r = R.panRange(drag.ph, drag.cell.w, drag.cell.h);
-      if (r.rx > 1) drag.ph.px = clamp(drag.px + (p.x - drag.x) / r.rx, -1, 1);
-      if (r.ry > 1) drag.ph.py = clamp(drag.py + (p.y - drag.y) / r.ry, -1, 1);
+      var d = localDelta(p.x - drag.x, p.y - drag.y, drag.cell.rot), r = R.panRange(drag.ph, drag.cell.w, drag.cell.h);
+      if (r.rx > 1) drag.ph.px = clamp(drag.px + d.x / r.rx, -1, 1);
+      if (r.ry > 1) drag.ph.py = clamp(drag.py + d.y / r.ry, -1, 1);
       render();
     }
   });
@@ -373,47 +514,75 @@
     if (Object.keys(ptrs).length === 0) {
       cv.classList.remove("drag");
       if (drag && drag.empty && !drag.moved) $("file").click();
-      if (drag && drag.type === "st") persist();
+      if (drag && drag.moved) changed();
       drag = null;
     }
   }
   cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
 
-  /* Speichern und Teilen */
-  function fileName() {
-    var base = s.texts.title.trim().toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return (base || "verkaufsbild") + ".png";
+  /* Speichern, Teilen, ZIP */
+  function offscreen() { var c = document.createElement("canvas"); c.width = W; c.height = VB.H(); return c; }
+  function canvasBlob(c) { return new Promise(function (res) { c.toBlob(res, "image/png"); }); }
+  function blobBytes(b) {
+    if (b.arrayBuffer) return b.arrayBuffer().then(function (a) { return new Uint8Array(a); });
+    return new Promise(function (res) { var fr = new FileReader(); fr.onload = function () { res(new Uint8Array(fr.result)); }; fr.readAsArrayBuffer(b); });
   }
-  function exportBlob(cb) {
-    var c = document.createElement("canvas"); c.width = W; c.height = VB.H();
-    R.draw(c.getContext("2d"), { export: true });
-    c.toBlob(function (b) { if (!b) toast("Das Bild konnte nicht erzeugt werden."); else cb(b); }, "image/png");
+  function saveBlob(blob, name) {
+    var a = document.createElement("a"), url = URL.createObjectURL(blob);
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 6000);
+  }
+  function coverBlob(x) {
+    var c = offscreen(); R.draw(c.getContext("2d"), { export: true, item: x });
+    return canvasBlob(c).then(function (b) { render(); return b; });
   }
   $("save").addEventListener("click", function () {
-    exportBlob(function (blob) {
-      var a = document.createElement("a"), url = URL.createObjectURL(blob);
-      a.href = url; a.download = fileName(); document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000); toast("Gespeichert.");
-    });
+    coverBlob(it()).then(function (b) { if (!b) { toast("Das Bild konnte nicht erzeugt werden."); return; } saveBlob(b, slug(it().texts.title) + ".png"); toast("Gespeichert."); });
   });
   var probe = new File([""], "x.png", { type: "image/png" });
   if (navigator.canShare && navigator.canShare({ files: [probe] })) {
     $("share").hidden = false;
     $("share").addEventListener("click", function () {
-      exportBlob(function (blob) {
-        navigator.share({ files: [new File([blob], fileName(), { type: "image/png" })] })
+      coverBlob(it()).then(function (b) {
+        if (!b) return;
+        navigator.share({ files: [new File([b], slug(it().texts.title) + ".png", { type: "image/png" })] })
           .catch(function (e) { if (e && e.name !== "AbortError") toast("Teilen hat nicht geklappt."); });
       });
     });
   }
+  $("singles").addEventListener("change", function () { s.singles = this.checked; changed(); });
+  $("zip").addEventListener("click", function () {
+    var bad = [];
+    s.items.forEach(function (x, i) { if (!VB.ready(x)) bad.push(i + 1); });
+    if (bad.length) { toast("Fotos fehlen noch bei Artikel " + bad.join(", ") + "."); return; }
+    $("zip").disabled = true; toast("ZIP wird erstellt …");
+    var files = [], chain = Promise.resolve(), texts = [];
+    s.items.forEach(function (x, i) {
+      var nn = ("0" + (i + 1)).slice(-2), base = nn + "-" + slug(x.texts.title);
+      chain = chain.then(function () { return coverBlob(x); }).then(blobBytes).then(function (b) { files.push({ name: base + ".png", data: b }); });
+      if (s.singles) x.photos.filter(Boolean).concat(x.extras).forEach(function (p, k) {
+        chain = chain.then(function () { var c = offscreen(); R.drawPlain(c.getContext("2d"), p); return canvasBlob(c); }).then(blobBytes)
+          .then(function (b) { files.push({ name: base + "-foto" + (k + 1) + ".png", data: b }); });
+      });
+      texts.push("=== " + nn + " · " + (x.texts.title.trim() || "Artikel") + " ===\n\n" + VB.adText(x));
+    });
+    chain.then(function () {
+      files.push({ name: "anzeigentexte.txt", data: new TextEncoder().encode(texts.join("\n\n\n") + "\n") });
+      saveBlob(VB.zip(files), "verkaufsbilder.zip"); toast("ZIP gespeichert (" + s.items.length + (s.items.length === 1 ? " Artikel)." : " Artikel)."));
+    }).catch(function () { toast("Das ZIP konnte nicht erstellt werden."); }).then(function () { render(); updateStatus(); });
+  });
 
-  /* Start */
+  /* Alles neu aufbauen (Start, Artikelwechsel, Rückgängig) */
+  function refreshAll() {
+    var x = it();
+    ["title", "size", "price", "old", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
+    $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles;
+    buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
+    buildLib(); buildSeries(); syncPhoto(); syncSticker(); syncAdUi(); genAd(); updateStatus(); setSize(); render();
+  }
+
   restore();
-  Object.keys(s.texts).forEach(function (k) { $(k).value = s.texts[k]; });
-  $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius;
-  buildArticles(); setSize(); buildFormats(); buildStyles(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildChips(); buildLib();
-  syncPhoto(); syncSticker(); updateStatus(); render();
+  refreshAll(); histPush();
   if (document.fonts && document.fonts.load) {
     Promise.all(VB.FONTS.map(function (f) { return document.fonts.load(f.css.replace("{s}", 60)); })
       .concat([document.fonts.load("400 60px 'Pacifico'"), document.fonts.load("700 46px 'DM Sans'"), document.fonts.load("800 60px 'Bricolage Grotesque'")]))
