@@ -73,7 +73,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: .9rem; z-index: 20;
+  background: var(--fg); color: var(--bg); padding: 12px 18px; border-radius: 16px; font-size: .9rem; z-index: 20; text-align: center;
   max-width: calc(100% - 32px);
 }
 [hidden] { display: none !important; }
@@ -127,3 +127,9 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 }
 .lightbox img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 10px; }
 .lightbox .btn { position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 1; }
+
+.btn.big { font-size: 1.15rem; min-height: 58px; }
+.opts { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; background: var(--panel); }
+.opts summary { cursor: pointer; font-weight: 600; font-size: .9rem; min-height: 32px; display: flex; align-items: center; }
+.opts[open] { display: grid; gap: 12px; }
+.opts[open] summary { margin-bottom: 0; }

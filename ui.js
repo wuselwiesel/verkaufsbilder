@@ -102,7 +102,7 @@
     var sn = snapshot(true); if (sn === hist[hi]) { syncUndo(); return; }
     hist = hist.slice(0, hi + 1); hist.push(sn); if (hist.length > 80) hist.shift(); hi = hist.length - 1; syncUndo();
   }
-  function changed() { save(); clearTimeout(histT); histT = setTimeout(histPush, 450); syncUndo(); }
+  function changed() { save(); clearTimeout(histT); histT = setTimeout(histPush, 450); syncUndo(); pendingFiles = null; setAllLabel(); scheduleWarm(); }
   function flush() { if (histT) { clearTimeout(histT); histPush(); } }
   function syncUndo() { $("undo").disabled = !(hi > 0 || histT); $("redo").disabled = !(hi < hist.length - 1); }
   function undo() { flush(); if (hi > 0) { hi--; applyState(JSON.parse(hist[hi])); adEdited = false; refreshAll(); save(); syncUndo(); } }
@@ -250,12 +250,12 @@
     $("autoCover").disabled = x.photos.filter(Boolean).length + x.extras.length < 2;
   }
   function updateStatus() {
-    var x = it(), ok = VB.ready(x), m = VB.missing(x), bad = -1, all = true, h = $("hint");
+    var x = it(), m = VB.missing(x), bad = -1, all = true, h = $("hint");
     s.items.forEach(function (y, i) { if (!VB.ready(y)) { all = false; if (bad < 0) bad = i + 1; } });
-    $("save").disabled = !ok; $("share").disabled = !ok; $("zip").disabled = !all;
     h.textContent = !VB.anyPhoto(x) ? "Das ist ein Beispielfoto. Lade dein eigenes Foto hoch, dann kannst du speichern."
       : m > 0 ? "Noch " + m + (m === 1 ? " Foto fehlt." : " Fotos fehlen.")
-      : !all ? "Dieser Artikel ist fertig. Für das ZIP fehlen noch Fotos bei Artikel " + bad + "." : "Fertig? Dann speichern.";
+      : !all ? "Dieser Artikel ist fertig. Bei Artikel " + bad + " fehlen noch Fotos." : "Fertig. Du kannst speichern.";
+    if (typeof setAllLabel === "function") setAllLabel();
   }
   function loadImg(file) {
     return new Promise(function (res) {
@@ -526,7 +526,13 @@
   }
   cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
 
-  /* Speichern, Teilen, ZIP */
+  /* Speichern: Auf dem iPhone öffnet sich das Teilen-Menü ("Bild sichern" legt es in Fotos ab),
+     sonst wird die Datei direkt geladen. Mehrere Bilder: iPhone Teilen-Menü, sonst ZIP. */
+  var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var CAN_SHARE = false;
+  try { CAN_SHARE = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File([""], "x.png", { type: "image/png" })] })); } catch (e) {}
+  var SHARE_FIRST = IOS && CAN_SHARE, pendingFiles = null;
+
   function exportScale() { return s.hires ? 2 : 1; }
   function offscreen() { var k = exportScale(), c = document.createElement("canvas"); c.width = W * k; c.height = VB.H() * k; return c; }
   function ctx2(c) { var x = c.getContext("2d"), k = exportScale(); x.scale(k, k); return x; }
@@ -538,61 +544,125 @@
   function saveBlob(blob, name) {
     var a = document.createElement("a"), url = URL.createObjectURL(blob);
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 6000);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
   }
-  function coverBlob(x) {
-    var c = offscreen(); R.draw(ctx2(c), { export: true, item: x });
-    return canvasBlob(c).then(function (b) { render(); return b; });
+
+  /* Das Titelbild wird schon im Voraus gerechnet, damit das Teilen-Menü sofort nach dem Tippen aufgeht (iPhone verlangt das) */
+  var warm = { sig: null, blob: null, t: null };
+  function sigNow() { return snapshot(true) + "|" + s.cur; }
+  function buildCover(x) { var c = offscreen(); R.draw(ctx2(c), { export: true, item: x }); return canvasBlob(c); }
+  function coverBlob(x) { return x === it() && warm.blob && warm.sig === sigNow() ? Promise.resolve(warm.blob) : buildCover(x); }
+  function scheduleWarm() {
+    clearTimeout(warm.t);
+    warm.t = setTimeout(function () {
+      var x = it(); if (!VB.ready(x) || document.hidden) return;
+      var sg = sigNow(); buildCover(x).then(function (b) { if (b && sg === sigNow()) { warm.sig = sg; warm.blob = b; } });
+    }, 800);
   }
-  $("save").addEventListener("click", function () {
-    coverBlob(it()).then(function (b) { if (!b) { toast("Das Bild konnte nicht erzeugt werden."); return; } saveBlob(b, slug(it().texts.title) + ".png"); toast("Gespeichert."); });
-  });
-  var probe = new File([""], "x.png", { type: "image/png" });
-  if (navigator.canShare && navigator.canShare({ files: [probe] })) {
-    $("share").hidden = false;
-    $("share").addEventListener("click", function () {
-      coverBlob(it()).then(function (b) {
-        if (!b) return;
-        navigator.share({ files: [new File([b], slug(it().texts.title) + ".png", { type: "image/png" })] })
-          .catch(function (e) { if (e && e.name !== "AbortError") toast("Teilen hat nicht geklappt."); });
+
+  function imageCount() {
+    var n = s.items.length;
+    if (s.singles) s.items.forEach(function (x) { n += x.photos.filter(Boolean).length + x.extras.length; });
+    return n;
+  }
+  function collect() {
+    var out = [], chain = Promise.resolve();
+    s.items.forEach(function (x, i) {
+      var base = ("0" + (i + 1)).slice(-2) + "-" + slug(x.texts.title);
+      chain = chain.then(function () { return coverBlob(x); }).then(function (b) { out.push({ name: base + ".png", blob: b }); });
+      if (s.singles) x.photos.filter(Boolean).concat(x.extras).forEach(function (p, k) {
+        chain = chain.then(function () { var c = offscreen(); R.drawPlain(ctx2(c), p); return canvasBlob(c); })
+          .then(function (b) { out.push({ name: base + "-foto" + (k + 1) + ".png", blob: b }); });
       });
     });
+    return chain.then(function () { return out; });
   }
-  $("singles").addEventListener("change", function () { s.singles = this.checked; changed(); });
+  function ensureReady(list) {
+    var bad = [];
+    list.forEach(function (x) { if (!VB.ready(x)) bad.push(s.items.indexOf(x) + 1); });
+    if (!bad.length) return true;
+    var first = s.items[bad[0] - 1];
+    if (list.length === 1) toast(!VB.anyPhoto(first) ? "Lade zuerst dein Foto hoch." : "Noch " + VB.missing(first) + (VB.missing(first) === 1 ? " Foto fehlt." : " Fotos fehlen."));
+    else toast("Fotos fehlen noch bei Artikel " + bad.join(", ") + ".");
+    document.querySelector('#tabs [data-tab="foto"]').click();
+    return false;
+  }
+
+  function setAllLabel() {
+    var n = imageCount();
+    $("all").hidden = n < 2;
+    $("all").textContent = pendingFiles && pendingFiles.length > 1 ? "Fertig. Jetzt tippen zum Speichern" : "Alle " + n + " Bilder speichern";
+    $("save").textContent = pendingFiles && pendingFiles.length === 1 ? "Fertig. Jetzt tippen zum Speichern" : "Bild speichern";
+  }
+  function shareFiles(files) {
+    return navigator.share({ files: files }).then(function () { pendingFiles = null; setAllLabel(); })
+      .catch(function (e) {
+        if (e && e.name === "AbortError") return;
+        if (e && e.name === "NotAllowedError") { pendingFiles = files; setAllLabel(); toast("Die Bilder sind fertig. Tippe noch einmal auf den Knopf."); return; }
+        toast("Das Teilen-Menü ging nicht auf. Nutze „Alles als ZIP-Datei laden“ unter Speicher-Optionen.");
+      });
+  }
+  function saveHelp() {
+    $("saveHelp").textContent = SHARE_FIRST ? "Es öffnet sich ein Menü. Wähle dort „Bild sichern“, dann liegt das Bild in deinen Fotos."
+      : IOS || /Android/.test(navigator.userAgent) ? "Das Bild landet in deinen Downloads." : "Das Bild landet in deinem Download-Ordner.";
+  }
+
+  $("save").addEventListener("click", function () {
+    if (pendingFiles && pendingFiles.length === 1) { shareFiles(pendingFiles); return; }
+    var x = it(); if (!ensureReady([x])) return;
+    var name = slug(x.texts.title) + ".png";
+    coverBlob(x).then(function (b) {
+      if (!b) { toast("Das Bild konnte nicht erzeugt werden."); return; }
+      if (SHARE_FIRST) return shareFiles([new File([b], name, { type: "image/png" })]);
+      saveBlob(b, name); toast("Gespeichert: " + name);
+    });
+  });
+  if (CAN_SHARE && !IOS) {
+    $("share").hidden = false;
+    $("share").addEventListener("click", function () {
+      var x = it(); if (!ensureReady([x])) return;
+      coverBlob(x).then(function (b) { if (b) shareFiles([new File([b], slug(x.texts.title) + ".png", { type: "image/png" })]); });
+    });
+  }
+
+  function exportZip() {
+    if (!ensureReady(s.items)) return;
+    toast("ZIP wird erstellt …");
+    collect().then(function (entries) {
+      return Promise.all(entries.map(function (e) { return blobBytes(e.blob).then(function (d) { return { name: e.name, data: d }; }); }));
+    }).then(function (files) {
+      var texts = s.items.map(function (x, i) { return "=== " + ("0" + (i + 1)).slice(-2) + " · " + (x.texts.title.trim() || "Artikel") + " ===\n\n" + VB.adText(x); });
+      files.push({ name: "anzeigentexte.txt", data: new TextEncoder().encode(texts.join("\n\n\n") + "\n") });
+      saveBlob(VB.zip(files), "verkaufsbilder.zip"); toast("ZIP gespeichert.");
+    }).catch(function () { toast("Das ZIP konnte nicht erstellt werden."); });
+  }
+  $("zip").addEventListener("click", exportZip);
+  $("all").addEventListener("click", function () {
+    if (pendingFiles && pendingFiles.length > 1) { shareFiles(pendingFiles); return; }
+    if (!ensureReady(s.items)) return;
+    if (!SHARE_FIRST) { exportZip(); return; }
+    toast("Bilder werden vorbereitet …");
+    collect().then(function (entries) {
+      shareFiles(entries.map(function (e) { return new File([e.blob], e.name, { type: "image/png" }); }));
+    });
+  });
+  $("singles").addEventListener("change", function () { s.singles = this.checked; setAllLabel(); changed(); });
   $("hires").addEventListener("change", function () { s.hires = this.checked; changed(); });
 
   /* Vollbild-Vorschau */
   var lbUrl = null;
   function closeLb() { $("lightbox").hidden = true; if (lbUrl) { URL.revokeObjectURL(lbUrl); lbUrl = null; } $("lbimg").removeAttribute("src"); }
   $("big").onclick = function () {
-    coverBlob(it()).then(function (b) {
+    var x = it();
+    buildCoverPreview(x).then(function (b) {
       if (!b) return;
       if (lbUrl) URL.revokeObjectURL(lbUrl);
       lbUrl = URL.createObjectURL(b); $("lbimg").src = lbUrl; $("lightbox").hidden = false; $("lbclose").focus();
     });
   };
+  function buildCoverPreview(x) { var c = document.createElement("canvas"); c.width = W; c.height = VB.H(); R.draw(c.getContext("2d"), { export: true, item: x }); return canvasBlob(c); }
   $("lbclose").onclick = closeLb; $("lightbox").addEventListener("click", function (e) { if (e.target !== $("lbimg")) closeLb(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("lightbox").hidden) closeLb(); });
-  $("zip").addEventListener("click", function () {
-    var bad = [];
-    s.items.forEach(function (x, i) { if (!VB.ready(x)) bad.push(i + 1); });
-    if (bad.length) { toast("Fotos fehlen noch bei Artikel " + bad.join(", ") + "."); return; }
-    $("zip").disabled = true; toast("ZIP wird erstellt …");
-    var files = [], chain = Promise.resolve(), texts = [];
-    s.items.forEach(function (x, i) {
-      var nn = ("0" + (i + 1)).slice(-2), base = nn + "-" + slug(x.texts.title);
-      chain = chain.then(function () { return coverBlob(x); }).then(blobBytes).then(function (b) { files.push({ name: base + ".png", data: b }); });
-      if (s.singles) x.photos.filter(Boolean).concat(x.extras).forEach(function (p, k) {
-        chain = chain.then(function () { var c = offscreen(); R.drawPlain(ctx2(c), p); return canvasBlob(c); }).then(blobBytes)
-          .then(function (b) { files.push({ name: base + "-foto" + (k + 1) + ".png", data: b }); });
-      });
-      texts.push("=== " + nn + " · " + (x.texts.title.trim() || "Artikel") + " ===\n\n" + VB.adText(x));
-    });
-    chain.then(function () {
-      files.push({ name: "anzeigentexte.txt", data: new TextEncoder().encode(texts.join("\n\n\n") + "\n") });
-      saveBlob(VB.zip(files), "verkaufsbilder.zip"); toast("ZIP gespeichert (" + s.items.length + (s.items.length === 1 ? " Artikel)." : " Artikel)."));
-    }).catch(function () { toast("Das ZIP konnte nicht erstellt werden."); }).then(function () { render(); updateStatus(); });
-  });
 
   /* Alles neu aufbauen (Start, Artikelwechsel, Rückgängig) */
   function refreshAll() {
@@ -600,7 +670,7 @@
     ["title", "size", "price", "old", "extra"].forEach(function (k) { $(k).value = x.texts[k]; });
     $("shop").value = s.shop; $("ct").value = s.t; $("cg").value = s.g; $("radius").value = s.radius; $("singles").checked = s.singles; $("hires").checked = s.hires;
     buildArticles(); buildChips(); buildFormats(); buildStyles(); buildBgs(); buildFonts(); buildCols(); buildCollage(); buildCells(); buildExtras();
-    buildLib(); buildSeries(); syncPhoto(); syncSticker(); syncAdUi(); genAd(); updateStatus(); setSize(); render();
+    buildLib(); buildSeries(); syncPhoto(); syncSticker(); syncAdUi(); genAd(); updateStatus(); setSize(); render(); saveHelp(); scheduleWarm();
   }
 
   restore();

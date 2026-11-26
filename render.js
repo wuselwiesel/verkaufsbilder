@@ -297,7 +297,7 @@
 
     /* Fotos / Collage */
     var cells = cellRects(coll, area, gap);
-    hit.cells = [];
+    var hc = [];
     g.save();
     if (!free) { g.beginPath(); shape(); g.clip(); g.fillStyle = bgFill; g.fillRect(area.x, area.y, area.w, area.h); }
     cells.forEach(function (c, i) {
@@ -318,9 +318,10 @@
         g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(lt, c.x + 44, c.y + c.h - 52); ls(g, 0);
       }
       g.restore();
-      hit.cells.push({ i: i, x: c.x, y: c.y, w: c.w, h: c.h, rot: c.rot, cx: cx, cy: cy, frame: c.frame });
+      hc.push({ i: i, x: c.x, y: c.y, w: c.w, h: c.h, rot: c.rot, cx: cx, cy: cy, frame: c.frame });
     });
     g.restore();
+    if (!o.export) hit.cells = hc;
 
     /* Text */
     if (st === "tise") {

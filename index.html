@@ -30,16 +30,19 @@
       </div>
       <canvas id="cv" width="1080" height="1350" role="img" aria-label="Vorschau des Verkaufsbilds"></canvas>
       <p class="hint" id="dragHint">Foto oder Aufkleber im Bild ziehen</p>
-      <div class="actions"><button class="btn small" id="big" type="button">Vorschau in voller Größe</button></div>
+      <div class="actions"><button class="btn primary big" id="save" type="button">Bild speichern</button></div>
+      <div class="actions"><button class="btn big" id="all" type="button" hidden>Alle Bilder speichern</button></div>
+      <p class="hint" id="saveHelp"></p>
       <div class="actions">
-        <button class="btn primary" id="save" type="button" disabled>Als PNG speichern</button>
-        <button class="btn" id="share" type="button" hidden>Teilen</button>
+        <button class="btn small" id="share" type="button" hidden>Teilen</button>
+        <button class="btn small" id="big" type="button">Vorschau in voller Größe</button>
       </div>
-      <div class="actions">
-        <button class="btn" id="zip" type="button" disabled>Alle als ZIP speichern</button>
-      </div>
-      <label class="check"><input type="checkbox" id="singles"> Einzelfotos im ZIP mitspeichern</label>
-      <label class="check"><input type="checkbox" id="hires"> Hohe Auflösung speichern (doppelte Größe, 2160 px breit)</label>
+      <details class="opts">
+        <summary>Speicher-Optionen</summary>
+        <label class="check"><input type="checkbox" id="singles"> Einzelfotos mitspeichern (jedes Foto als eigenes Bild)</label>
+        <label class="check"><input type="checkbox" id="hires"> Hohe Auflösung (doppelte Größe, 2160 px breit)</label>
+        <button class="btn small" id="zip" type="button">Alles als ZIP-Datei laden</button>
+      </details>
       <p class="hint" id="hint"></p>
     </section>
 
